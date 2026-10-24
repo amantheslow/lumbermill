@@ -16,7 +16,12 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 
 ## Saving
 
-The game does not save automatically. Open the Mill Ledger (M), go to the **Save** tab and choose **Save to file**, or press Ctrl+S (Cmd+S on a Mac). This writes the whole mill to a `.json` file. To carry on later, choose **Load a saved mill** on the title screen or **Load from file** in the Save tab. Loading checks the file first, and if it is damaged or isn't a save, your current game is left as it was.
+There are two kinds of save, and they work together:
+
+- **Autosave.** The game saves itself in your browser at the end of every in-game day and whenever you leave the page. Next time, choose **Continue** on the title screen. Starting a new mill asks you to confirm, because it replaces the autosave. If the browser blocks storage (some private windows), autosave is off and the Save tab says so.
+- **Save files.** Open the Mill Ledger (M), go to the **Save** tab and choose **Save to file**, or press Ctrl+S (Cmd+S on a Mac). This writes the whole mill to a `.json` file you can keep as a backup or move to another browser or device. Load it with **Load a save file** on the title screen or **Load from file** in the Save tab.
+
+Saving to a file also refreshes the autosave, and loading a file makes it the new autosave, so Continue always picks up the mill you last played. Loading checks the file first, and if it is damaged or isn't a save, your current game is left as it was.
 
 ## Controls
 

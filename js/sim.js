@@ -152,7 +152,7 @@ function blankState(seed) {
     stats: { logsCut: 0, made: {}, sold: {}, revenue: 0, spent: 0, planted: 0, secrets: 0, contracts: 0, history: [] },
     goals: [], dirty: { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 }, powerDirty: true, frame: 0, lastDay: 0,
     initialForest: 0, health: 100, warned: 100, rivalFlood: null, lowCash: 0, reserved: new Set(),
-    hq: null, candDay: 0, savedAt: null,
+    hq: null, candDay: 0, fileSavedAt: null, autoSavedAt: null,
   };
   for (const k of Object.keys(ITEMS)) g.market[k] = { m: 1, phase: rand() * 6.28, hist: [] };
   return g;

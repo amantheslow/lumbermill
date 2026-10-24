@@ -155,7 +155,6 @@ function restoreGame(d) {
     const rf_ = obj(d.rivalFlood);
     G.rivalFlood = ITEMS[rf_.item] ? { item: rf_.item, until: int(rf_.until) } : null;
     G.uid = Math.max(int(d.uid), ...G.buildings.map(b => b.id), ...G.workers.map(w => w.id), ...G.candidates.map(c => c.id), ...G.letters.map(l => l.id), ...G.offers.map(o => o.id), 0);
-    G.savedAt = G.t;
     G.dirty = { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 };
     G.powerDirty = true;
     return obj(d.camera);
@@ -165,9 +164,47 @@ function restoreGame(d) {
   }
 }
 
+// ---------- autosave (this browser only) ----------
+const AUTOSAVE_KEY = 'heartwood-mill-autosave';
+let storageOk = null;
+function autoSaveAvailable() {
+  if (storageOk === null) {
+    try { localStorage.setItem('heartwood-mill-test', '1'); localStorage.removeItem('heartwood-mill-test'); storageOk = true; }
+    catch { storageOk = false; }
+  }
+  return storageOk;
+}
+function autoSave() {
+  if (!G || !G.hq || !playing) return false;
+  try {
+    const at = G.t;
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeGame()));
+    G.autoSavedAt = at;
+    return true;
+  } catch { return false; }
+}
+function readAutoSave() {
+  try { const s = localStorage.getItem(AUTOSAVE_KEY); return s ? JSON.parse(s) : null; }
+  catch { return null; }
+}
+function autoSaveSummary(d) {
+  if (!d || d.format !== SAVE_FORMAT || typeof d.t !== 'number') return null;
+  const staff = Array.isArray(d.workers) ? d.workers.length : 0;
+  return `${dateStr(Math.floor(d.t / 1440))} · ${fmt(typeof d.money === 'number' ? d.money : 0)} coins · ${staff} staff`;
+}
+function continueFromAutoSave() {
+  const d = readAutoSave();
+  if (!d) { toast('There is no autosave in this browser.', 'bad'); return; }
+  let cam;
+  try { cam = restoreGame(d); }
+  catch { toast('Your autosave is damaged and could not be loaded. Load a save file or start a new mill.', 'bad'); return; }
+  afterLoad(cam, `Welcome back. It's ${dateStr()}.`);
+}
+
 // ---------- files ----------
 async function saveToFile() {
   if (!G || !G.hq) return;
+  autoSave();
   const json = JSON.stringify(serializeGame());
   const p = dateParts();
   const filename = `heartwood-mill-year${p.y}-${p.m.slice(0, 3).toLowerCase()}-${p.d}.json`;
@@ -177,7 +214,7 @@ async function saveToFile() {
     if (!dl) { toast('Saving to a file is not available here.', 'bad'); return; }
     try {
       await dl.save({ filename, data: json });
-      G.savedAt = G.t; toast('Mill saved.', 'good');
+      G.fileSavedAt = G.t; toast('Mill saved to a file.', 'good');
     } catch (e) {
       const code = e && e.code;
       if (code === 'declined') toast('Save cancelled.');
@@ -192,7 +229,7 @@ async function saveToFile() {
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  G.savedAt = G.t; toast('Mill saved.', 'good');
+  G.fileSavedAt = G.t; toast('Mill saved to a file.', 'good');
   renderPanel();
 }
 function openLoadDialog() {

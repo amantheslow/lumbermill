@@ -225,6 +225,8 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
 .controls dt { color: var(--ink); }
 .controls dd { margin: 0; }
 .seedline { font-size: 12px; color: var(--ink-dim); }
+.continue-info { margin: -4px 0 0; font-size: 13.5px; color: var(--good); }
+.savetab h4 { text-align: left !important; padding: 3px 8px !important; margin: 4px 0 0 !important; }
 
 @media (max-width: 700px) { #hint { flex-wrap: wrap; } }
 @media (max-width: 700px) {
@@ -289,7 +291,8 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
       <dt>Inspect</dt><dd>Click staff, buildings and trees. M opens the Mill Ledger.</dd>
       <dt>Time</dt><dd>Space pauses. Speed buttons sit beside the date.</dd>
     </dl>
-    <div class="title-btns"><button class="go" id="btn-start">Start the mill</button><button id="btn-reroll">New forest</button><button id="btn-load">Load a saved mill</button></div>
+    <div class="title-btns"><button class="go" id="btn-continue" hidden>Continue</button><button class="go" id="btn-start">Start the mill</button><button id="btn-reroll">New forest</button><button id="btn-load">Load a save file</button></div>
+    <p class="continue-info" id="continue-info" hidden></p>
     <p class="tribute">A tribute to <i>Lumbermill</i>, the forest factory game by BWDev. All code and art here are new.</p>
     <p class="seedline">Forest seed <span id="seed"></span></p>
   </div>

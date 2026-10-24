@@ -419,12 +419,20 @@ function panelPolicies() {
 
 function panelGame() {
   const clock = (t) => { const h = (t % 1440) / 60; return `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, '0')}`; };
-  const state = G.savedAt === null ? 'This mill has not been saved yet.' : `Last saved on ${dateStr(Math.floor(G.savedAt / 1440))} at ${clock(G.savedAt)}, game time.`;
+  const when = (t) => `${dateStr(Math.floor(t / 1440))} at ${clock(t)}, game time`;
+  const auto = !autoSaveAvailable()
+    ? 'This browser is blocking storage, so autosave is off. Save to a file to keep your progress.'
+    : G.autoSavedAt === null ? 'Not autosaved yet. It will save at the end of the day.' : `Autosaved on ${when(G.autoSavedAt)}.`;
+  const file = G.fileSavedAt === null ? 'Not saved to a file this session.' : `Saved to a file on ${when(G.fileSavedAt)}.`;
   return `<div class="savetab">
-    <p>Your mill is not saved automatically. Save it to a file on your device, then load that file here or from the title screen to carry on, on this device or another.</p>
-    <p class="savestate">${state}</p>
+    <h4>Autosave</h4>
+    <p>The game saves itself in this browser at the end of every in-game day, and whenever you leave the page. Pick up where you left off with Continue on the title screen.</p>
+    <p class="savestate">${auto}</p>
+    <h4>Save file</h4>
+    <p>Keep a copy on your device as a backup, or to carry on in another browser or on another device. Saving to a file also updates the autosave, and loading a file makes it your autosave.</p>
+    <p class="savestate">${file}</p>
     <div class="row-btns"><button class="go" data-act="save">Save to file</button><button data-act="load">Load from file</button></div>
-    <p class="note">Ctrl+S (or Cmd+S) saves at any time. Loading replaces the mill you are playing, so save it first if you want to keep it.</p>
+    <p class="note">Ctrl+S (or Cmd+S) saves to a file at any time. Loading replaces the mill you are playing, so save it first if you want to keep it.</p>
   </div>`;
 }
 
