@@ -14,6 +14,10 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 - **Forest health.** The board fines a mill that strips its forest, so you have to balance felling against replanting.
 - **Research.** Nine unlocks, including carpentry, campsite comforts, new sapling species, faster conveyors, reinforced machines, solar and advanced trade.
 
+## Saving
+
+The game does not save automatically. Open the Mill Ledger (M), go to the **Save** tab and choose **Save to file**, or press Ctrl+S (Cmd+S on a Mac). This writes the whole mill to a `.json` file. To carry on later, choose **Load a saved mill** on the title screen or **Load from file** in the Save tab. Loading checks the file first, and if it is damaged or isn't a save, your current game is left as it was.
+
 ## Controls
 
 | Action | Input |
@@ -24,6 +28,7 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 | Rotate a conveyor | R |
 | Mill Ledger (staff, hiring, research, trade, letters, policies) | M |
 | Pause | Space |
+| Save to file | Ctrl+S / Cmd+S |
 | Cancel | Esc or right-click |
 
 ## Code layout
@@ -35,4 +40,5 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 | `js/sim.js` | World generation, forest lifecycle, buildings, conveyors, power, staff AI and the economy |
 | `js/render.js` | Isometric renderer: cached ground, depth-sorted sprites, day/night lighting |
 | `js/ui.js` | HUD, inspector, the Mill Ledger, and mouse, touch and keyboard input |
+| `js/save.js` | Save files: writes the mill to JSON and checks and restores it on load |
 | `js/main.js` | Boot, title screen and the main loop |

@@ -105,6 +105,7 @@ function buildHud() {
   }
   window.addEventListener('pointerup', () => setTimeout(() => UI.pointerInPanel = false, 0));
   $('#panel-close').addEventListener('click', closePanel);
+  $('#load-file').addEventListener('change', e => loadFromFile(e.target.files[0]));
   $('#panel-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { UI.tab = b.dataset.tab; renderPanel(); } });
 }
 function setSpeed(s) {
@@ -289,12 +290,12 @@ function openPanel(tab) {
 function closePanel() { UI.panelOpen = false; $('#panel').hidden = true; }
 function renderPanel() {
   if (!UI.panelOpen) return;
-  const tabs = [['overview', 'Overview'], ['staff', 'Staff'], ['hire', 'Hire'], ['research', 'Research'], ['trade', 'Trade'], ['letters', 'Letters'], ['policies', 'Policies']];
+  const tabs = [['overview', 'Overview'], ['staff', 'Staff'], ['hire', 'Hire'], ['research', 'Research'], ['trade', 'Trade'], ['letters', 'Letters'], ['policies', 'Policies'], ['game', 'Save']];
   const unread = G.letters.filter(l => !l.read).length;
   const th = tabs.map(([id, n]) => `<button data-tab="${id}" class="${UI.tab === id ? 'on' : ''}">${n}${id === 'letters' && unread ? ` <i class="badge">${unread}</i>` : ''}${id === 'trade' && G.offers.length ? ` <i class="badge soft">${G.offers.length}</i>` : ''}</button>`).join('');
   const tabEl = $('#panel-tabs');
   if (tabEl._html !== th) { tabEl.innerHTML = th; tabEl._html = th; }
-  const fn = { overview: panelOverview, staff: panelStaff, hire: panelHire, research: panelResearch, trade: panelTrade, letters: panelLetters, policies: panelPolicies }[UI.tab];
+  const fn = { overview: panelOverview, staff: panelStaff, hire: panelHire, research: panelResearch, trade: panelTrade, letters: panelLetters, policies: panelPolicies, game: panelGame }[UI.tab];
   const html = fn();
   const body = $('#panel-body');
   if (body._html !== html) { body.innerHTML = html; body._html = html; if (UI.tab === 'overview') drawCharts(); }
@@ -416,6 +417,17 @@ function panelPolicies() {
   </div>`;
 }
 
+function panelGame() {
+  const clock = (t) => { const h = (t % 1440) / 60; return `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, '0')}`; };
+  const state = G.savedAt === null ? 'This mill has not been saved yet.' : `Last saved on ${dateStr(Math.floor(G.savedAt / 1440))} at ${clock(G.savedAt)}, game time.`;
+  return `<div class="savetab">
+    <p>Your mill is not saved automatically. Save it to a file on your device, then load that file here or from the title screen to carry on, on this device or another.</p>
+    <p class="savestate">${state}</p>
+    <div class="row-btns"><button class="go" data-act="save">Save to file</button><button data-act="load">Load from file</button></div>
+    <p class="note">Ctrl+S (or Cmd+S) saves at any time. Loading replaces the mill you are playing, so save it first if you want to keep it.</p>
+  </div>`;
+}
+
 function onAction(e) {
   const b = e.target.closest('[data-act]');
   if (!b) return;
@@ -448,6 +460,8 @@ function onAction(e) {
     case 'pol': G.policy[v] = b.checked; break;
     case 'radius': G.policy.chopRadius = +b.value; break;
     case 'species': G.plantSpecies = v; break;
+    case 'save': saveToFile(); return;
+    case 'load': openLoadDialog(); return;
   }
   renderInspector(); renderPanel(); updateHud();
 }
@@ -516,6 +530,7 @@ function initInput() {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if (!G || !$('#title').hidden) return;
     const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveToFile(); return; }
     keys.add(k);
     if (k === 'escape') { if (UI.tool !== 'select') setTool('select'); else if (UI.panelOpen) closePanel(); else { UI.sel = null; renderInspector(); } closeFlyout(); }
     if (k === 'r' && UI.tool === 'belt') { UI.beltDir = (UI.beltDir + (e.shiftKey ? 3 : 1)) % 4; updateHint(); }

@@ -138,9 +138,8 @@ function fxPuff(px, py, col, n = 1, spread = 2) { for (let i = 0; i < n; i++) G.
 function fxChips(tx, ty) { for (let i = 0; i < 3; i++) G.fx.push({ k: 'chip', x: isoX(tx, ty), y: isoY(tx, ty) - 6, vx: rf(-14, 14), vy: rf(-22, -10), life: 0.6, col: pick(['#d3a873', '#a87d50', '#e5c08f']) }); }
 
 // ---------- world generation ----------
-function newGame(seed) {
-  rand = makeRng(seed);
-  G = {
+function blankState(seed) {
+  const g = {
     seed, t: 6 * 60, speed: 1, money: 3000, uid: 0,
     tiles: new Uint8Array(MAP * MAP), reveal: new Uint8Array(MAP * MAP), occ: new Int32Array(MAP * MAP),
     tree: new Array(MAP * MAP).fill(null), trees: [], stump: new Uint8Array(MAP * MAP),
@@ -153,8 +152,14 @@ function newGame(seed) {
     stats: { logsCut: 0, made: {}, sold: {}, revenue: 0, spent: 0, planted: 0, secrets: 0, contracts: 0, history: [] },
     goals: [], dirty: { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 }, powerDirty: true, frame: 0, lastDay: 0,
     initialForest: 0, health: 100, warned: 100, rivalFlood: null, lowCash: 0, reserved: new Set(),
+    hq: null, candDay: 0, savedAt: null,
   };
-  for (const k of Object.keys(ITEMS)) G.market[k] = { m: 1, phase: rand() * 6.28, hist: [] };
+  for (const k of Object.keys(ITEMS)) g.market[k] = { m: 1, phase: rand() * 6.28, hist: [] };
+  return g;
+}
+function newGame(seed) {
+  rand = makeRng(seed);
+  G = blankState(seed);
   const S = seed % 10000;
   // island shape
   const c = MAP / 2;
@@ -325,22 +330,29 @@ function placeBuilding(type, x, y, free = false) {
     if (why) { toast(why, 'bad'); return null; }
     if (!spend(d.cost, d.name)) return null;
   }
-  const b = { id: ++G.uid, type, x, y, w: d.w, h: d.h, inv: {}, out: [], prog: 0, recipe: d.recipes ? d.recipes[0] : null, dur: 100, broken: false, sat: 0, fuel: 0, stock: 0, res: 0, v: ri(0, 2), outIdx: 0, active: false, made: 0 };
+  const b = addBuilding(type, x, y, ++G.uid);
   if (type === 'steam') b.fuel = 4;
-  G.buildings.push(b); G.bmap.set(b.id, b);
   for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
-    const k = idx(x + i, y + j); G.occ[k] = b.id; G.stump[k] = 0; G.plantMark[k] = 0;
+    const k = idx(x + i, y + j); G.stump[k] = 0; G.plantMark[k] = 0;
     if (G.tiles[k] === 2) G.tiles[k] = 1;
   }
+  markDirty(x - 1, y - 1, x + d.w, y + d.h);
+  if (!free) fxText(x + d.w / 2, y + d.h / 2, '-' + fmt(d.cost), '#ff8a7a');
+  return b;
+}
+// create a building record, claim its tiles and work out the tiles around it
+function addBuilding(type, x, y, id) {
+  const d = BDEF[type];
+  const b = { id, type, x, y, w: d.w, h: d.h, inv: {}, out: [], prog: 0, recipe: d.recipes ? d.recipes[0] : null, dur: 100, broken: false, sat: 0, fuel: 0, stock: 0, res: 0, v: ri(0, 2), outIdx: 0, active: false, made: 0 };
+  G.buildings.push(b); G.bmap.set(b.id, b);
+  for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) G.occ[idx(x + i, y + j)] = b.id;
   b.perim = [];
   for (let i = -1; i <= d.w; i++) for (let j = -1; j <= d.h; j++) {
     const inside = i >= 0 && j >= 0 && i < d.w && j < d.h;
     const corner = (i === -1 || i === d.w) && (j === -1 || j === d.h);
     if (!inside && !corner && inMap(x + i, y + j)) b.perim.push([x + i, y + j]);
   }
-  markDirty(x - 1, y - 1, x + d.w, y + d.h);
   G.powerDirty = true;
-  if (!free) fxText(x + d.w / 2, y + d.h / 2, '-' + fmt(d.cost), '#ff8a7a');
   return b;
 }
 function removeBuilding(b) {

@@ -16,6 +16,21 @@ function newWorld(seed) {
   renderInspector();
 }
 
+function afterLoad(cam) {
+  computeWaterDist();
+  UI.sel = null; UI.letterSel = null; UI.drag = null; UI.confirm = null;
+  lastHud = '';
+  $('#seed').textContent = G.seed;
+  closePanel(); closeFlyout(); setTool('select'); renderInspector();
+  if (typeof cam.s === 'number' && isFinite(cam.x) && isFinite(cam.y)) {
+    R.cam.s = clamp(Math.round(cam.s), 1, 6); resize();
+    R.cam.x = cam.x; R.cam.y = cam.y; clampCam();
+  } else { const c = bCenter(G.hq); centerOn(c.x + 1, c.y + 1); }
+  $('#title').hidden = true; playing = true;
+  setSpeed(1);
+  toast(`Mill loaded: ${dateStr()}.`, 'good');
+}
+
 function boot() {
   bakeArt();
   newGame((Math.random() * 1e9) >>> 0);
@@ -33,6 +48,7 @@ function boot() {
     toast('Your crew is ready. Work through the goals to learn the ropes.', 'good');
   });
   $('#btn-reroll').addEventListener('click', () => newWorld((Math.random() * 1e9) >>> 0));
+  $('#btn-load').addEventListener('click', openLoadDialog);
   requestAnimationFrame(frame);
 }
 

@@ -30,7 +30,7 @@
 }
 html, body { height: 100%; }
 [hidden] { display: none !important; }
-body { background: var(--sky); color: var(--ink); font-family: var(--font); font-size: 15px; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+body { background: var(--sky); color: var(--ink); font-family: var(--font); font-size: 15px; font-variant-ligatures: none; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 #view { position: fixed; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -205,6 +205,10 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
 .pol input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--go); }
 .pol input[type=range] { accent-color: var(--go); width: 160px; }
 .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.savetab { display: grid; gap: 10px; max-width: 60ch; }
+.savetab p { margin: 0; line-height: 1.45; }
+.savestate { background: var(--panel-2); padding: 8px 10px; }
+.savetab .row-btns button { flex: 0 1 auto; padding: 6px 16px; width: auto; }
 
 /* --- title --- */
 #title { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(12,20,16,0.25), rgba(12,20,16,0.82)); padding: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -272,6 +276,7 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
   <div id="panel-body"></div>
 </section>
 
+<input type="file" id="load-file" accept=".json,application/json" hidden>
 <div id="title">
   <div class="title-card pnl">
     <div>
@@ -284,7 +289,7 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
       <dt>Inspect</dt><dd>Click staff, buildings and trees. M opens the Mill Ledger.</dd>
       <dt>Time</dt><dd>Space pauses. Speed buttons sit beside the date.</dd>
     </dl>
-    <div class="title-btns"><button class="go" id="btn-start">Start the mill</button><button id="btn-reroll">New forest</button></div>
+    <div class="title-btns"><button class="go" id="btn-start">Start the mill</button><button id="btn-reroll">New forest</button><button id="btn-load">Load a saved mill</button></div>
     <p class="tribute">A tribute to <i>Lumbermill</i>, the forest factory game by BWDev. All code and art here are new.</p>
     <p class="seedline">Forest seed <span id="seed"></span></p>
   </div>
@@ -295,4 +300,5 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
 <script src="js/sim.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/save.js"></script>
 <script src="js/main.js"></script>
