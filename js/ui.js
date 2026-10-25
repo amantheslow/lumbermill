@@ -169,7 +169,7 @@ function updateHud() {
   $('#money').textContent = fmt(G.money);
   $('#money').classList.toggle('neg', G.money < 0);
   $('#dow').textContent = p.wd;
-  $('#date').textContent = `${p.d} ${p.m}, Year ${p.y}`;
+  $('#date').textContent = `${p.m} ${p.d}, Year ${p.y}`;
   $('#clock').textContent = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, '0')}`;
   let sup = 0, dem = 0;
   for (const n of G.nets) { sup += n.supply || 0; dem += n.demand || 0; }

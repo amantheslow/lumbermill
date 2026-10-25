@@ -207,7 +207,7 @@ async function saveToFile() {
   autoSave();
   const json = JSON.stringify(serializeGame());
   const p = dateParts();
-  const filename = `heartwood-mill-year${p.y}-${p.m.slice(0, 3).toLowerCase()}-${p.d}.json`;
+  const filename = `heartwood-mill-year${p.y}-${p.m.toLowerCase()}-${p.d}.json`;
   if (window.claude && window.claude.use) {
     // inside the claude.ai viewer, files go through the downloads capability
     const dl = await window.claude.use('downloads').catch(() => null);

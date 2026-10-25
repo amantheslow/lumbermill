@@ -2,8 +2,10 @@
 // Simulation: world generation, forest lifecycle, buildings, conveyors, power, staff AI and the business.
 
 const MIN_PER_SEC = 20;            // game minutes per simulated second (1 day = 72 s at 1x)
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+// a year is four 12-day seasons; the mill opens on the first day of autumn
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const SEASON_DAYS = 12, START_SEASON = 2;
+const SEASON_GROWTH = [1.4, 1.1, 0.8, 0.25], SEASON_SEEDING = [1.5, 1, 0.4, 0], SEASON_BLIGHT = [1, 1.3, 1, 0.3];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const ITEMS = {
@@ -96,12 +98,12 @@ function daylight() {
   if (h > 18.5) return 1 - (h - 18.5) / 2.5;
   return 1;
 }
+function seasonOf(day = dayOf()) { return (START_SEASON + Math.floor(day / SEASON_DAYS)) % 4; }
 function dateParts(day = dayOf()) {
-  let m = 8, d = 5 + day, y = 1; // starts 6 September, Year 1
-  while (d >= MONTH_DAYS[m]) { d -= MONTH_DAYS[m]; m++; if (m > 11) { m = 0; y++; } }
-  return { wd: WEEKDAYS[day % 7], d: d + 1, m: MONTHS[m], y };
+  const s = START_SEASON + Math.floor(day / SEASON_DAYS);
+  return { wd: WEEKDAYS[day % 7], d: day % SEASON_DAYS + 1, m: SEASONS[s % 4], y: 1 + Math.floor(s / 4) };
 }
-function dateStr(day) { const p = dateParts(day); return `${p.d} ${p.m}, Year ${p.y}`; }
+function dateStr(day) { const p = dateParts(day); return `${p.m} ${p.d}, Year ${p.y}`; }
 function has(r) { return G.research.done.includes(r); }
 function treeStage(t) {
   if (t.sp === 'ancient') return 'mature';
@@ -998,7 +1000,8 @@ function updateMood(w, dt) {
   const flowers = G.buildings.filter(b => b.type === 'flowers').length;
   const hasBed = w.home && G.bmap.has(w.home);
   const cabin = hasBed && G.bmap.get(w.home).type === 'cabin';
-  let target = 58 + (P_.morale || 0) + (fires ? 8 : -4) + Math.min(10, flowers * 2.5) + (hasBed ? (cabin ? 12 : 6) : -14) + (G.health - 85) * 0.35;
+  const cold = seasonOf() === 3;
+  let target = 58 + (P_.morale || 0) + (fires ? (cold ? 12 : 8) : (cold ? -10 : -4)) + Math.min(10, flowers * 2.5) + (hasBed ? (cabin ? 12 : 6) : -14) + (G.health - 85) * 0.35;
   m.morale = clamp(m.morale + (target - m.morale) * dt * 0.02, 0, 100);
   const grumps = G.workers.filter(o => o !== w && o.pers === 'grumpy').length;
   const cheer = G.workers.filter(o => o !== w && o.pers === 'cheerful').length;
@@ -1014,8 +1017,19 @@ function updateMood(w, dt) {
 }
 
 // ---------- daily cycle ----------
+const SEASON_LETTERS = [
+  ['Spring has come', 'The snow is gone and the woods are waking up. Trees grow fastest this season and seed freely, so it is the best time to replant.'],
+  ['Summer in the valley', 'Long warm days. Trees keep growing well, but blight spreads faster in the heat. Keep your arborists busy.'],
+  ['Autumn colours', 'The maples are turning. Growth is slowing down and fewer seeds take root.'],
+  ['Winter is here', 'Snow on the ground. Trees barely grow and nothing seeds until spring, so fell carefully. Logs sell for more while people heat their homes, and a campfire matters more to a cold crew.'],
+];
 function newDay() {
   const day = dayOf();
+  const season = seasonOf(day);
+  if (day > 0 && seasonOf(day - 1) !== season) {
+    letter('Forestry Board', SEASON_LETTERS[season][0], SEASON_LETTERS[season][1]);
+    toast(`${SEASONS[season]} has arrived.`, 'good');
+  }
   // forest lifecycle
   const ancient = G.trees.filter(t => t.sp === 'ancient');
   const births = [];
@@ -1027,7 +1041,7 @@ function newDay() {
       if (t.fallen && t.deadDays > 26 && !t.res) { removeTree(t.x, t.y); if (chance(0.5)) births.push([t.x, t.y, t.sp]); }
       continue;
     }
-    t.age += TREE_SPECIES[t.sp].growth * (t.sick ? 0.3 : 1);
+    t.age += TREE_SPECIES[t.sp].growth * SEASON_GROWTH[season] * (t.sick ? 0.3 : 1);
     if (t.sick) {
       t.sick++;
       for (let d = 0; d < 4; d++) { const o = G.tree[idx(t.x + DX[d], t.y + DY[d])]; if (o && !o.dead && !o.sick && o.sp !== 'ancient' && chance(0.18)) o.sick = 1; }
@@ -1037,6 +1051,7 @@ function newDay() {
     const st = treeStage(t);
     let seedP = st === 'mature' ? 0.035 : st === 'old' ? 0.05 : 0;
     if (ancient.some(a => dist(a.x, a.y, t.x, t.y) < 9)) seedP *= 2;
+    seedP *= SEASON_SEEDING[season];
     if (chance(seedP)) {
       const x = t.x + ri(-3, 3), y = t.y + ri(-3, 3);
       if (plantable(x, y) && !G.plantMark[idx(x, y)] && G.tiles[idx(x, y)] === 1) {
@@ -1049,7 +1064,7 @@ function newDay() {
   for (const [x, y, sp] of births) if (plantable(x, y)) addTree(x, y, sp, 0.1);
   for (let k = 0; k < MAP * MAP; k++) if (G.stump[k] && G.stump[k]++ > 14) G.stump[k] = 0;
   // blight outbreaks
-  if (day > 3 && chance(0.12)) {
+  if (day > 3 && chance(0.12 * SEASON_BLIGHT[season])) {
     const cands = G.trees.filter(t => !t.dead && t.sp !== 'ancient' && t.age > 8);
     if (cands.length) {
       const t = pick(cands); t.sick = 1;
@@ -1086,6 +1101,7 @@ function newDay() {
   // market
   for (const [k, m] of Object.entries(G.market)) {
     let v = 1 + 0.13 * Math.sin(day / 6 * Math.PI * 2 / 2 + m.phase) + rf(-0.05, 0.05);
+    if (k === 'log' && season === 3) v *= 1.2; // firewood demand
     if (G.rivalFlood && G.rivalFlood.item === k && day < G.rivalFlood.until) v *= 0.68;
     m.m = Math.max(0.4, v);
     m.hist.push(+m.m.toFixed(3)); if (m.hist.length > 30) m.hist.shift();

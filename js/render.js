@@ -71,6 +71,13 @@ function resize() {
 }
 
 // ---------- ground cache ----------
+// ground colours by season: spring, summer, autumn, winter (snow)
+const GROUND = [
+  { grass: '#4f8444', L: '#59914a', D: '#46773c', flowers: ['#f2a6c4', '#f4efe4', '#f0d264'], petal: '#e3bfd6' },
+  { grass: '#4a7b3e', L: '#538746', D: '#426f38', flowers: ['#f0d264', '#f4efe4', '#f0d264'], petal: '#d9e3a2' },
+  { grass: '#46703f', L: '#4c7844', D: '#40693a', flowers: ['#f0d264', '#dfe7f2', '#dfe7f2'], petal: '#a9bedf' },
+  { grass: '#e1e8ef', L: '#f1f5f9', D: '#cdd9e4', flowers: [], petal: null, bare: '#5d7459' },
+].map(g => ({ ...g, grass: C(g.grass), L: C(g.L), D: C(g.D), flowers: g.flowers.map(f => C(f)), petal: g.petal ? C(g.petal) : 0, bare: g.bare ? C(g.bare) : 0 }));
 function landAt(x, y) { return inMap(x, y) && G.tiles[idx(x, y)] !== 0; }
 function revAt(x, y) { return inMap(x, y) ? G.reveal[idx(x, y)] : 0; }
 function groundPixel(wx, wy) {
@@ -80,16 +87,20 @@ function groundPixel(wx, wy) {
   if (landAt(tx, ty)) {
     const type = G.tiles[idx(tx, ty)];
     const h = hash2(wx, wy, 7);
+    const pal = GROUND[R.season === undefined ? 2 : R.season];
     if (type === 2) {
       c = h < 0.12 ? P.dirtL : h > 0.9 ? P.dirtD : P.dirt;
+      if (pal.bare && h > 0.78) c = pal.D; // snow trodden into the path
     } else {
       const n = vnoise(wx * 0.07, wy * 0.12, 3);
-      c = n > 0.68 ? P.grassL : n < 0.3 ? P.grassD : P.grass;
+      c = n > 0.68 ? pal.L : n < 0.3 ? pal.D : pal.grass;
+      if (pal.bare && vnoise(wx * 0.05, wy * 0.09, 8) < 0.2 && h < 0.8) c = pal.bare; // grass showing through the snow
       if (h < 0.05) c = shade(c, 1.08); else if (h > 0.96) c = shade(c, 0.92);
-      // little four-petal flowers
+      // little four-petal flowers (in winter, the odd glint of frost)
       const fl = (x, y) => hash2(x, y, 11) < 0.0016;
-      if (fl(wx, wy)) c = hash2(wx, wy, 12) < 0.3 ? P.flowerY : P.flowerW;
-      else if (fl(wx - 1, wy) || fl(wx + 1, wy) || fl(wx, wy - 1) || fl(wx, wy + 1)) c = P.flowerB;
+      if (!pal.petal) { if (hash2(wx, wy, 13) < 0.003) c = P.white; }
+      else if (fl(wx, wy)) c = pal.flowers[Math.floor(hash2(wx, wy, 12) * 3)];
+      else if (fl(wx - 1, wy) || fl(wx + 1, wy) || fl(wx, wy - 1) || fl(wx, wy + 1)) c = pal.petal;
       // path edges blend softly into grass
       if (type === 1) {
         const fx = t.x - tx, fy = t.y - ty;
@@ -106,9 +117,10 @@ function groundPixel(wx, wy) {
     else {
       const wd = inMap(tx, ty) ? R.waterDist[idx(tx, ty)] : 9;
       const n = vnoise(wx * 0.05, wy * 0.1, 21);
-      c = wd <= 1 ? P.waterL : (n > 0.75 && wd > 3 ? P.waterD : P.water);
+      const ice = R.season === 3;
+      c = wd <= 1 ? (ice ? C('#b7d3e3') : P.waterL) : (n > 0.75 && wd > 3 ? P.waterD : P.water);
       const u = screenToTile(wx + 0.5, wy + 0.5 - 7);
-      if (wd <= 1 && landAt(Math.floor(u.x), Math.floor(u.y)) && hash2(wx, wy, 5) < 0.5) c = P.waterS;
+      if (wd <= 1 && landAt(Math.floor(u.x), Math.floor(u.y)) && hash2(wx, wy, 5) < 0.5) c = ice ? C('#e2eef5') : P.waterS;
       if (hash2(wx >> 2, wy, 31) < 0.012) c = P.waterL;
     }
   }
@@ -158,6 +170,8 @@ function spr(ctx, s, x, y) { ctx.drawImage(s.cv, Math.round(x - s.ax), Math.roun
 function tileTop(x, y) { return [isoX(x, y) + R.ox, isoY(x, y) + R.oy]; }
 
 function render(now) {
+  const se = seasonOf();
+  if (se !== R.season) { R.season = se; G.dirty = { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 }; R.weather = []; }
   rebuildGround();
   const ctx = R.ctx, cw = R.cv.width, ch = R.cv.height;
   R.ox = Math.round(cw / 2 - R.cam.x); R.oy = Math.round(ch / 2 - R.cam.y);
@@ -212,7 +226,7 @@ function render(now) {
   list.sort((a, b) => a.d - b.d);
   for (const e of list) {
     if (e.k === 't') drawTree(ctx, e.o, e.sx, e.sy, e.fog, time);
-    else if (e.k === 's') spr(ctx, ART.stump, e.sx, e.sy);
+    else if (e.k === 's') spr(ctx, R.season === 3 ? winterOf(ART.stump) : ART.stump, e.sx, e.sy);
     else if (e.k === 'b') drawBuilding(ctx, e.o, e.sx, e.sy, time);
     else if (e.k === 'w') drawWorker(ctx, e.o, e.sx, e.sy, time);
     else if (e.k === 'x') {
@@ -231,6 +245,7 @@ function render(now) {
     else if (f.k === 'spark') { ctx.fillStyle = '#ffe28a'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1); }
     else if (f.k === 'z') { ctx.fillStyle = 'rgba(230,236,255,' + clamp(f.life, 0, 1) + ')'; const x = Math.round(sx), y = Math.round(sy); ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 1, y + 1, 1, 1); ctx.fillRect(x, y + 2, 3, 1); }
   }
+  drawWeather(ctx, time);
   drawToolPreview(ctx, time);
   drawNight(ctx, time, tx0, tx1, ty0, ty1);
   drawOverlay(time);
@@ -239,8 +254,9 @@ function render(now) {
 function drawTree(ctx, t, sx, sy, fog, time) {
   const st = treeStage(t);
   let s;
-  if (t.dead) s = t.fallen ? ART.fallen : (fog ? ART.deadFog : ART.dead)[t.v];
-  else s = (fog ? ART.treesFog : t.sick ? ART.treesSick : ART.trees)[t.sp][st][t.sp === 'ancient' ? 0 : t.v];
+  const set = ART.seasons[R.season];
+  if (t.dead) { s = t.fallen ? ART.fallen : (fog ? ART.deadFog : ART.dead)[t.v]; if (R.season === 3 && !fog) s = winterOf(s); }
+  else s = (fog ? set.fog : t.sick ? set.sick : set.trees)[t.sp][st][t.sp === 'ancient' ? 0 : t.v];
   let x = sx;
   if (t.shake > 0) x += Math.sin(time * 60) > 0 ? 1 : -1;
   spr(ctx, s, x, sy);
@@ -254,12 +270,14 @@ function drawTree(ctx, t, sx, sy, fog, time) {
 function drawBuilding(ctx, b, sx, sy, time) {
   let s;
   const lit = daylight() < 0.6;
+  const B = R.season === 3 ? ART.bWinter : ART.b;
   switch (b.type) {
-    case 'hq': s = lit ? ART.b.hqLit : ART.b.hq; break;
-    case 'tent': s = ART.b.tent[b.v]; break;
-    case 'intake': s = ART.b.intake[b.stock === 0 ? 0 : b.stock < 8 ? 1 : 2]; break;
-    default: s = ART.b[b.type];
+    case 'hq': s = lit ? B.hqLit : B.hq; break;
+    case 'tent': s = B.tent[b.v]; break;
+    case 'intake': s = B.intake[b.stock === 0 ? 0 : b.stock < 8 ? 1 : 2]; break;
+    default: s = B[b.type];
   }
+  if (R.season === 3) s = winterOf(s);
   if (UI.sel && UI.sel.kind === 'building' && UI.sel.ref === b) for (let j = 0; j < b.h; j++) for (let i = 0; i < b.w; i++) { const [hx, hy] = tileTop(b.x + i, b.y + j); ctx.drawImage(R.hl.sel, hx - 16, hy); }
   spr(ctx, s, sx, sy);
   // animated bits
@@ -392,8 +410,9 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
     if (b.type === 'steam' && b.gen > 0) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 4, 22, '255,120,40', dark * 0.6); }
     if ((b.type === 'sawmill' || b.type === 'workshop') && b.active) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 8, 20, '255,210,140', dark * 0.4); }
   }
-  // fireflies drifting through the trees
-  while (R.fireflies.length < 40) R.fireflies.push({ x: rf(tx0, tx1), y: rf(ty0, ty1), ph: rf(0, 6.28), sp: rf(0.6, 1.4) });
+  // fireflies drifting through the trees (none in winter)
+  if (R.season === 3) R.fireflies.length = 0;
+  else while (R.fireflies.length < 40) R.fireflies.push({ x: rf(tx0, tx1), y: rf(ty0, ty1), ph: rf(0, 6.28), sp: rf(0.6, 1.4) });
   ctx.fillStyle = `rgba(255,236,120,${Math.min(1, dark * 1.6)})`;
   for (const f of R.fireflies) {
     f.x += Math.sin(time * f.sp + f.ph) * 0.004; f.y += Math.cos(time * f.sp * 0.8 + f.ph) * 0.004;
@@ -404,6 +423,32 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
   }
   if (Math.random() < 0.02) R.fireflies.shift();
   ctx.globalCompositeOperation = 'source-over';
+}
+
+// falling petals in spring, leaves in autumn, snow in winter; drawn in screen space
+const WEATHER = [
+  { n: 12, cols: ['#f6c3d6', '#fbe4ee'], vy: [7, 12], sway: 6, size: 1 },
+  { n: 0 },
+  { n: 26, cols: ['#e57a26', '#c9481d', '#f0b03c', '#b4572a'], vy: [9, 16], sway: 10, size: 2 },
+  { n: 150, cols: ['#ffffff', '#e8f0f7'], vy: [7, 15], sway: 4, size: 1 },
+];
+function drawWeather(ctx, time) {
+  const dt = Math.min(0.1, time - (R.wt || time)); R.wt = time;
+  const kind = WEATHER[R.season], W = R.weather || (R.weather = []);
+  const cw = R.cv.width, ch = R.cv.height;
+  const spawn = (anywhere) => ({ x: rf(0, cw), y: anywhere ? rf(0, ch) : -4, vy: rf(...kind.vy), ph: rf(0, 6.28), col: pick(kind.cols), big: kind.size > 1 || chance(0.15) });
+  while (W.length < kind.n) W.push(spawn(true));
+  W.length = Math.min(W.length, kind.n);
+  for (let i = 0; i < W.length; i++) {
+    const f = W[i];
+    f.y += f.vy * dt; f.ph += dt * 1.6;
+    const x = Math.round(f.x + Math.sin(f.ph) * kind.sway), y = Math.round(f.y);
+    if (y > ch + 4) { W[i] = spawn(false); continue; }
+    if (x < -2) f.x += cw; else if (x > cw + 2) f.x -= cw;
+    ctx.fillStyle = f.col;
+    if (R.season === 2) ctx.fillRect(x, y, Math.sin(f.ph * 2) > 0 ? 2 : 1, Math.sin(f.ph * 2) > 0 ? 1 : 2);
+    else ctx.fillRect(x, y, f.big ? 2 : 1, f.big ? 2 : 1);
+  }
 }
 
 function drawOverlay(time) {

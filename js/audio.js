@@ -139,15 +139,15 @@ function updateAmbience(dt, playing) {
     s.connect(f); f.connect(crackle); crackle.connect(g); s.start();
     setInterval(() => { if (AUD.ctx) crackle.gain.setTargetAtTime(Math.random() < 0.3 ? 1 : 0.15, AUD.ctx.currentTime, 0.01); }, 70);
   });
-  setLoop('wind', playing ? 0.05 : 0.03, g => {
+  setLoop('wind', !playing ? 0.03 : G && seasonOf() === 3 ? 0.09 : 0.05, g => {
     const c = AUD.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), lfo = c.createOscillator(), lg = c.createGain();
     s.buffer = AUD.noise; s.loop = true; f.type = 'lowpass'; f.frequency.value = 500;
     lfo.frequency.value = 0.08; lg.gain.value = 250; lfo.connect(lg); lg.connect(f.frequency);
     s.connect(f); f.connect(g); s.start(); lfo.start();
   });
   if (!live) return;
-  const day = daylight();
+  const day = daylight(), winter = seasonOf() === 3;
   AUD.birdT -= dt; AUD.cricketT -= dt;
-  if (day > 0.5 && AUD.birdT <= 0) { AUD.birdT = rf(1.5, 5); SFX.bird(out(day * 0.9, rf(-0.8, 0.8))); }
-  if (day < 0.3 && AUD.cricketT <= 0) { AUD.cricketT = rf(0.25, 0.9); SFX.cricket(out(1 - day, rf(-0.8, 0.8))); }
+  if (day > 0.5 && AUD.birdT <= 0) { AUD.birdT = rf(1.5, 5) * (winter ? 4 : 1); SFX.bird(out(day * 0.9, rf(-0.8, 0.8))); }
+  if (day < 0.3 && !winter && AUD.cricketT <= 0) { AUD.cricketT = rf(0.25, 0.9); SFX.cricket(out(1 - day, rf(-0.8, 0.8))); }
 }

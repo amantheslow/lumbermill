@@ -45,7 +45,12 @@ function box(b, ox, oy, x0, y0, x1, y1, z0, z1, cl, cr, ct) {
   if (ct) faceTop(b, ox, oy, x0, y0, x1, y1, z1, ct);
 }
 // gable roof with ridge along x
+// while SNOW is set, sprite functions draw their roofs snowed over (used to bake the winter buildings)
+let SNOW = false;
+const snowTex = (base) => (x, y) => (hash2(x, y, 21) < 0.07 ? C('#cbd8e4') : base);
+const SNOW_FRONT = snowTex(C('#e4ebf2')), SNOW_BACK = snowTex(C('#f4f7fa')), SNOW_TOP = snowTex(C('#eef3f7'));
 function gableX(b, ox, oy, x0, y0, x1, y1, z, rise, cFront, cBack, cGable, ov = 0.12) {
+  if (SNOW) { cFront = SNOW_FRONT; cBack = SNOW_BACK; }
   const ym = (y0 + y1) / 2;
   b.poly([cp(ox, oy, x0 - ov, y0 - ov, z - 1), cp(ox, oy, x1 + ov, y0 - ov, z - 1), cp(ox, oy, x1 + ov, ym, z + rise), cp(ox, oy, x0 - ov, ym, z + rise)], cBack);
   b.poly([cp(ox, oy, x1, y1, z), cp(ox, oy, x1, y0, z), cp(ox, oy, x1, ym, z + rise)], cGable);
@@ -53,6 +58,7 @@ function gableX(b, ox, oy, x0, y0, x1, y1, z, rise, cFront, cBack, cGable, ov = 
 }
 // gable roof with ridge along y
 function gableY(b, ox, oy, x0, y0, x1, y1, z, rise, cFront, cBack, cGable, ov = 0.12) {
+  if (SNOW) { cFront = SNOW_FRONT; cBack = SNOW_BACK; }
   const xm = (x0 + x1) / 2;
   b.poly([cp(ox, oy, x0 - ov, y0 - ov, z - 1), cp(ox, oy, x0 - ov, y1 + ov, z - 1), cp(ox, oy, xm, y1 + ov, z + rise), cp(ox, oy, xm, y0 - ov, z + rise)], cBack);
   b.poly([cp(ox, oy, x0, y1, z), cp(ox, oy, x1, y1, z), cp(ox, oy, xm, y1, z + rise)], cGable);
@@ -85,6 +91,11 @@ const TREE_SPECIES = {
   ancient: { name: 'Ancient Oak', kind: 'round', growth: 0, maxAge: 1e9, value: 0, cols: ['#7fcf6a', '#58ad52', '#3f8f45', '#2d7139', '#1d4f29'] },
 };
 const STAGE_SCALE = { sapling: 0.36, young: 0.62, mature: 1.0, old: 1.12 };
+// leaf colours by season (spring, summer, autumn, winter); null means bare branches
+const SEASON_LEAVES = {
+  maple: [['#b9e67a', '#93cf5c', '#72b247', '#56923a', '#3a6b2a'], ['#7cc35a', '#5aa847', '#468c3b', '#357132', '#255224'], null, null],
+  birch: [['#d2ef8c', '#b0dc6a', '#8fc252', '#6fa142', '#4c7631'], ['#9fd06a', '#7cb853', '#619b44', '#4b7d39', '#33592a'], null, null],
+};
 
 function drawConifer(b, cx, base, s, cols, seed) {
   const [hi, li, mi, dk, ed] = cols.map(c => C(c));
@@ -130,8 +141,10 @@ function drawRound(b, cx, base, s, cols, seed, birch, big) {
       b.set(x, y, c);
     }
 }
-function makeTree(species, stage, variant) {
+function makeTree(species, stage, variant, season = 2) {
   const sp = TREE_SPECIES[species];
+  const leaves = SEASON_LEAVES[species] ? SEASON_LEAVES[species][season] || (season === 2 ? sp.cols : null) : sp.cols;
+  if (!leaves) return makeBareTree(stage, variant, sp.trunk === 'birch');
   const big = species === 'ancient';
   const W = big ? 52 : 30, H = big ? 70 : 48;
   const b = new PixBuf(W, H);
@@ -140,9 +153,56 @@ function makeTree(species, stage, variant) {
   b.ellipse(cx + 1, base, (big ? 16 : 8) * Math.max(s, 0.5), (big ? 7 : 3.6) * Math.max(s, 0.5), SHADOW);
   const seed = variant * 13 + 5;
   if (sp.kind === 'conifer') drawConifer(b, cx, base, s, sp.cols, seed);
-  else drawRound(b, cx, base, s, sp.cols, seed, sp.trunk === 'birch', big);
+  else drawRound(b, cx, base, s, leaves, seed, sp.trunk === 'birch', big);
   return { cv: b.toCanvas(), ax: cx, ay: base };
 }
+// a deciduous tree in winter: trunk and a fan of branches
+function makeBareTree(stage, variant, birch) {
+  const s = STAGE_SCALE[stage];
+  const b = new PixBuf(30, 48), cx = 15, base = 42;
+  b.ellipse(cx + 1, base, 8 * Math.max(s, 0.5), 3.6 * Math.max(s, 0.5), SHADOW);
+  const trunk = birch ? (x, y) => (hash2(x, y, 3) < 0.25 ? P.black : P.white) : (x) => (x < cx ? C('#6e5442') : C('#54402f'));
+  const th = Math.round(26 * s);
+  b.rect(cx - 1, base - th, 2, th + 1, trunk);
+  const r = makeRng(variant * 7 + 3), twig = birch ? C('#8a7a6a') : C('#5d4636');
+  const n = s < 0.5 ? 2 : 5;
+  for (let i = 0; i < n; i++) {
+    const y = base - th * (0.35 + 0.6 * i / n), dir = i % 2 ? 1 : -1, len = (4 + r() * 6) * s + 1;
+    b.line(cx, y, cx + dir * len, y - len * 0.9, twig);
+    b.line(cx + dir * len * 0.6, y - len * 0.55, cx + dir * (len * 0.6 + 2), y - len * 0.55 - 3 * s, twig);
+  }
+  b.line(cx, base - th, cx + (r() < 0.5 ? -2 : 2), base - th - 4 * s, twig);
+  // a sparse crown of fine twigs gives the tree its winter silhouette
+  const rx = 8 * s + 1, ry = 9 * s + 1, cy = base - th - ry * 0.35;
+  const fine = birch ? C('#9b8d7e') : C('#6b5242');
+  b.ellipse(cx, cy, rx, ry, (x, y, dx, dy) => {
+    const d = dx * dx + dy * dy;
+    return hash2(x, y, variant + 40) < (d > 0.55 ? 0.34 : 0.14) ? fine : 0;
+  });
+  return { cv: b.toCanvas(), ax: cx, ay: base };
+}
+// dust the top of every exposed surface with snow
+function snowify(sp) {
+  const cv = sp.cv, ctx = cv.getContext('2d', { willReadFrequently: true });
+  const id = ctx.getImageData(0, 0, cv.width, cv.height), u = new Uint32Array(id.data.buffer), w = cv.width;
+  const snow = C('#f1f5f9'), snow2 = C('#d5e1ec');
+  const solid = (i) => (u[i] >>> 24) >= 200;
+  const top = new Uint8Array(u.length);
+  for (let y = 0; y < cv.height; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (solid(i) && (y === 0 || !solid(i - w))) top[i] = 1;
+  }
+  for (let i = 0; i < u.length; i++) {
+    if (top[i]) u[i] = snow;
+    else if (i >= w && top[i - w] && solid(i) && hash2(i % w, (i / w) | 0, 17) < 0.55) u[i] = snow2;
+  }
+  const out = document.createElement('canvas');
+  out.width = cv.width; out.height = cv.height;
+  out.getContext('2d').putImageData(id, 0, 0);
+  return { cv: out, ax: sp.ax, ay: sp.ay };
+}
+const _winter = new WeakMap();
+function winterOf(sp) { let s = _winter.get(sp); if (!s) { s = snowify(sp); _winter.set(sp, s); } return s; }
 function makeDeadTree(variant) {
   const b = new PixBuf(24, 40), cx = 12, base = 34;
   b.ellipse(cx + 1, base, 5, 2.5, SHADOW);
@@ -283,7 +343,7 @@ function spriteWell() {
   b.ellipse(cx, cy - 7, 6, 2.5, C('#24343f'));
   b.rect(cx - 7, cy - 20, 1, 14, P.woodD); b.rect(cx + 6, cy - 20, 1, 14, P.woodD);
   b.line(cx - 7, cy - 17, cx + 6, cy - 17, P.woodDD);
-  b.poly([[cx - 10, cy - 18], [cx, cy - 25], [cx + 10, cy - 18], [cx, cy - 15]], (x) => x < cx ? P.redL : P.redD);
+  b.poly([[cx - 10, cy - 18], [cx, cy - 25], [cx + 10, cy - 18], [cx, cy - 15]], SNOW ? (x) => (x < cx ? SNOW_BACK(x, cy) : SNOW_FRONT(x, cy)) : (x) => x < cx ? P.redL : P.redD);
   b.rect(cx, cy - 16, 1, 6, C('#9a9a9a'));
   b.rect(cx - 1, cy - 10, 3, 2, P.woodL);
   return finishBuilding(o);
@@ -295,7 +355,7 @@ function spriteOuthouse() {
   faceLeft(b, ox, oy, 0.32, 0.8, 0.68, 1, 17, plankL(P.wood));
   const [mx, my] = cp(ox, oy, 0.5, 0.8, 13);
   b.set(mx, my, P.black); b.set(mx + 1, my - 1, P.black); b.set(mx + 1, my + 1, P.black); b.set(mx, my - 2, P.black); b.set(mx, my + 2, P.black);
-  faceTop(b, ox, oy, 0.12, 0.12, 0.88, 0.88, 23, P.woodD);
+  faceTop(b, ox, oy, 0.12, 0.12, 0.88, 0.88, 23, SNOW ? SNOW_TOP : P.woodD);
   faceLeft(b, ox, oy, 0.12, 0.88, 0.88, 22, 23, P.woodDD);
   faceRight(b, ox, oy, 0.88, 0.12, 0.88, 22, 23, P.woodDD);
   return finishBuilding(o);
@@ -366,7 +426,7 @@ function spriteDepot() {
     const [x, y] = cp(ox, oy, tx, ty, 2);
     b.rect(x - 1, y - 18, 2, 18, P.woodD);
   }
-  faceTop(b, ox, oy, 0, 0, 2, 2, 22, (x, y) => (x % 4 === 0 ? P.tealD : hash2(x, y, 3) < 0.05 ? P.tealL : P.teal));
+  faceTop(b, ox, oy, 0, 0, 2, 2, 22, SNOW ? SNOW_TOP : (x, y) => (x % 4 === 0 ? P.tealD : hash2(x, y, 3) < 0.05 ? P.tealL : P.teal));
   faceLeft(b, ox, oy, 0, 2, 2, 20, 22, P.tealD); faceRight(b, ox, oy, 2, 0, 2, 20, 22, shade(P.tealD, 0.8));
   const [sx, sy] = cp(ox, oy, 1.0, 2.0, 21);
   b.ellipse(sx, sy - 6, 4, 4, P.gold); b.ellipse(sx, sy - 6, 2.5, 2.5, C('#d9a10f'));
@@ -378,7 +438,7 @@ function spriteSteam() {
   const brickL = (x, y) => ((((y - x * 0.5) % 3) + 3) % 3 < 1 || ((x + (Math.floor((y - x * 0.5) / 3) & 1) * 2) % 5 === 0)) ? C('#6d3a2c') : C('#8d4b37');
   box(b, ox, oy, 0.15, 0.15, 1.85, 1.85, 0, 6, brickL, (x, y) => shade(brickL(x, y), 0.8), null);
   const rivet = (base) => (x, y) => (x % 6 === 0 && y % 4 === 0) ? P.metalL : ((x + y) % 11 === 0 ? shade(base, 0.85) : base);
-  box(b, ox, oy, 0.3, 0.3, 1.7, 1.7, 6, 20, rivet(P.metal), rivet(P.metalD), rivet(P.metalL));
+  box(b, ox, oy, 0.3, 0.3, 1.7, 1.7, 6, 20, rivet(P.metal), rivet(P.metalD), SNOW ? SNOW_TOP : rivet(P.metalL));
   // stacks
   const stacks = [[0.6, 0.6], [1.0, 0.55], [1.35, 0.7]];
   for (const [tx, ty] of stacks) {
@@ -547,29 +607,43 @@ function buildIcons() {
 
 // ---------- bake everything ----------
 function bakeArt() {
-  ART.trees = {}; ART.treesSick = {}; ART.treesFog = {};
+  ART.seasons = [0, 1, 2, 3].map(() => ({ trees: {}, sick: {}, fog: {} }));
   const fogify = (s) => ({ cv: recolour(s.cv, c => { const [r, g, bl, a] = unpack(c); const l = (r + g + bl) / 3; return a < 200 ? c : pack(12 + l * 0.12, 22 + l * 0.14, 18 + l * 0.12, a); }), ax: s.ax, ay: s.ay });
   const sicken = (s) => ({ cv: recolour(s.cv, c => { const [r, g, bl, a] = unpack(c); return a < 200 ? c : mix(c, pack(150, 120, 60), 0.5); }), ax: s.ax, ay: s.ay });
   for (const sp of Object.keys(TREE_SPECIES)) {
-    ART.trees[sp] = {}; ART.treesSick[sp] = {}; ART.treesFog[sp] = {};
     const stages = sp === 'ancient' ? ['mature'] : ['sapling', 'young', 'mature', 'old'];
-    for (const st of stages) {
-      ART.trees[sp][st] = []; ART.treesSick[sp][st] = []; ART.treesFog[sp][st] = [];
-      for (let v = 0; v < 3; v++) {
-        const s = makeTree(sp, st, v);
-        ART.trees[sp][st].push(s); ART.treesSick[sp][st].push(sicken(s)); ART.treesFog[sp][st].push(fogify(s));
+    const seasonal = !!SEASON_LEAVES[sp];
+    for (let se = 0; se < 4; se++) {
+      const set = ART.seasons[se];
+      set.trees[sp] = {}; set.sick[sp] = {}; set.fog[sp] = {};
+      for (const st of stages) {
+        set.trees[sp][st] = []; set.sick[sp][st] = []; set.fog[sp][st] = [];
+        for (let v = 0; v < 3; v++) {
+          let s, sick, fog;
+          if (!seasonal && se < 3 && se > 0) { // evergreens only change in winter: reuse spring's sprites
+            const p0 = ART.seasons[0];
+            s = p0.trees[sp][st][v]; sick = p0.sick[sp][st][v]; fog = p0.fog[sp][st][v];
+          } else {
+            s = makeTree(sp, st, v, se);
+            if (se === 3) s = snowify(s);
+            sick = sicken(s); fog = fogify(s);
+          }
+          set.trees[sp][st].push(s); set.sick[sp][st].push(sick); set.fog[sp][st].push(fog);
+        }
       }
     }
   }
   ART.dead = [0, 1, 2].map(makeDeadTree);
   ART.deadFog = ART.dead.map(fogify);
   ART.fallen = makeFallenLog(); ART.stump = makeStump();
-  ART.b = {
+  const buildings = () => ({
     hq: spriteHQ(false), hqLit: spriteHQ(true),
     tent: [0, 1, 2].map(spriteTent), well: spriteWell(), outhouse: spriteOuthouse(), campfire: spriteCampfire(),
     intake: [0, 1, 2].map(spriteIntake), sawmill: spriteSawmill(), workshop: spriteWorkshop(), depot: spriteDepot(),
     steam: spriteSteam(), solar: spriteSolar(), pole: spritePole(), cabin: spriteCabin(), flowers: spriteFlowers(),
-  };
+  });
+  ART.b = buildings();
+  SNOW = true; ART.bWinter = buildings(); SNOW = false;
   ART.belt = [0, 1, 2, 3].map(d => [0, 1, 2, 3].map(f => spriteBelt(d, f)));
   ART.items = {}; for (const t of ['log', 'plank', 'crate', 'chair', 'table']) ART.items[t] = spriteItem(t);
   ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint']) ART.secret[k] = spriteSecret(k);
