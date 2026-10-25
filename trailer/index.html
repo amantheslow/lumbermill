@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Heartwood Mill trailer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&text=0123456789&display=swap">
+<style>
+/* The trailer is drawn frame by frame onto #out; the game's own canvases are rendered offscreen. */
+html, body { margin: 0; background: #0c1410; }
+#view, #overlay { display: none; }
+#out { display: block; width: 100vw; height: auto; image-rendering: pixelated; }
+</style>
+
+<canvas id="view"></canvas>
+<canvas id="overlay"></canvas>
+<canvas id="out" width="1920" height="1080"></canvas>
+
+<script src="../js/core.js"></script>
+<script src="../js/audio.js"></script>
+<script src="../js/art.js"></script>
+<script src="../js/sim.js"></script>
+<script src="../js/render.js"></script>
+<script src="trailer.js"></script>

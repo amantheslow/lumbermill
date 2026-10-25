@@ -45,6 +45,12 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 | Sound on or off | N |
 | Cancel | Esc or right-click |
 
+## Release trailer
+
+`trailer/heartwood-mill-trailer.mp4` is a 55-second, 1080p trailer. It is made by the game itself: `trailer/index.html` loads the game's scripts, builds a mill, and runs a scripted sequence of shots (dawn over the forest, felling, the factory line, the four seasons, a night by the campfire, replanting). Each frame is rendered by the game's own renderer, and the titles are drawn in its panel style. The soundtrack uses the game's synthesised effects and a short tune made with the same Web Audio helpers.
+
+To render it again, run `node trailer/make-video.js`. This needs Node, Playwright with Chromium, and ffmpeg with libx264. Add `--from=12 --to=20` to render only part of it.
+
 ## Code layout
 
 | File | Contents |
