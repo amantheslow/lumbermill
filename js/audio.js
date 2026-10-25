@@ -119,6 +119,7 @@ function updateAmbience(dt, playing) {
     if (b.type === 'sawmill') saw += pl.vol; else if (b.type === 'workshop') saw += pl.vol * 0.4;
     else if (b.type === 'steam') steam += pl.vol; else fire += pl.vol;
   }
+  if (live) for (const t of G.trees) if (t.fire > 0) { const pl = placeSound(t.x + 0.5, t.y + 0.5); if (pl) fire += pl.vol * 1.5; } // burning trees roar
   setLoop('saw', Math.min(0.09, saw * 0.05), g => {
     const c = AUD.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), lfo = c.createOscillator(), lg = c.createGain();
     o.type = 'sawtooth'; o.frequency.value = 196; f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 2;
@@ -132,7 +133,7 @@ function updateAmbience(dt, playing) {
     s.connect(f); f.connect(am); am.connect(g); s.start(); lfo.start();
   });
   const night = live ? 1 - daylight() : 0;
-  setLoop('fire', Math.min(0.12, fire * 0.06 * (0.4 + night)), g => {
+  setLoop('fire', Math.min(0.2, fire * 0.06 * (0.4 + night)), g => {
     const c = AUD.ctx, s = c.createBufferSource(), f = c.createBiquadFilter();
     s.buffer = AUD.noise; s.loop = true; f.type = 'highpass'; f.frequency.value = 2500;
     const crackle = c.createGain(); crackle.gain.value = 0.4;

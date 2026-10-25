@@ -24,7 +24,7 @@ function serializeGame() {
     seed: G.seed, t: G.t, money: G.money, uid: G.uid, rep: G.rep, plantSpecies: G.plantSpecies,
     grids: { tiles: bytesToB64(G.tiles), reveal: bytesToB64(G.reveal), stump: bytesToB64(G.stump), plantMark: bytesToB64(G.plantMark) },
     secrets: G.secrets,
-    trees: G.trees.map(t => ({ x: t.x, y: t.y, sp: t.sp, age: t.age, maxAge: t.maxAge, v: t.v, sick: t.sick, dead: t.dead, fallen: t.fallen, deadDays: t.deadDays, mark: t.mark, secret: t.secret ? G.secrets.indexOf(t.secret) : -1 })),
+    trees: G.trees.map(t => ({ x: t.x, y: t.y, sp: t.sp, age: t.age, maxAge: t.maxAge, v: t.v, sick: t.sick, dead: t.dead, fallen: t.fallen, deadDays: t.deadDays, mark: t.mark, fire: t.fire || 0, charred: !!t.charred, secret: t.secret ? G.secrets.indexOf(t.secret) : -1 })),
     buildings: G.buildings.map(b => ({ id: b.id, type: b.type, x: b.x, y: b.y, inv: b.inv, out: b.out, prog: b.prog, recipe: b.recipe, dur: b.dur, broken: b.broken, fuel: b.fuel, stock: b.stock, v: b.v, outIdx: b.outIdx, made: b.made, burn: b.burn || 0 })),
     belts: G.belts.map(b => ({ x: b.x, y: b.y, dir: b.dir, item: b.item, p: b.p })),
     workers: G.workers.map(w => ({ id: w.id, name: w.name, role: w.role, pers: w.pers, level: w.level, pay: w.pay, skill: w.skill, ap: w.ap, x: w.x, y: w.y, carry: w.carry, needs: w.needs, mood: w.mood, low: w.low, rogue: w.rogue, rogueDays: w.rogueDays || 0, thought: w.thought, home: w.home, xp: w.xp })),
@@ -32,7 +32,7 @@ function serializeGame() {
     letters: G.letters, offers: G.offers, contracts: G.contracts,
     research: G.research, market: G.market, policy: G.policy, stats: G.stats,
     goals: G.goals.filter(g => g.done).map(g => g.id), tutor: G.tutor, tutorialOff: G.tutorialOff,
-    initialForest: G.initialForest, health: G.health, warned: G.warned, rivalFlood: G.rivalFlood, lowCash: G.lowCash,
+    initialForest: G.initialForest, health: G.health, warned: G.warned, rivalFlood: G.rivalFlood, lowCash: G.lowCash, story: G.story,
     camera: { x: R.cam.x, y: R.cam.y, s: R.cam.s },
   };
 }
@@ -61,8 +61,16 @@ function cleanPerson(c) {
     level: clamp(int(c.level, 1), 1, 5), pay: clamp(int(c.pay, 60), 0, 10000), skill: clamp(num(c.skill, 1), 0.1, 5), ap: cleanAppearance(c.ap, role),
   };
 }
-function cleanLetter(l) { return { id: int(l.id), from: str(l.from, '', 80), subject: str(l.subject, '', 160), body: str(l.body, '', 4000), day: int(l.day), read: !!l.read, kind: oneOf(l.kind, { info: 1, good: 1, bad: 1 }, 'info') }; }
-function cleanDeal(o) { return { id: int(o.id), company: str(o.company, 'A customer', 60), item: oneOf(o.item, ITEMS, 'log'), qty: clamp(int(o.qty, 1), 1, 10000), price: Math.max(0, num(o.price)), days: Math.max(1, int(o.days, 5)), expires: int(o.expires), negotiated: !!o.negotiated, deadline: int(o.deadline), delivered: Math.max(0, int(o.delivered)) }; }
+function cleanLetter(l) {
+  const out = { id: int(l.id), from: str(l.from, '', 80), subject: str(l.subject, '', 160), body: str(l.body, '', 4000), day: int(l.day), read: !!l.read, kind: oneOf(l.kind, { info: 1, good: 1, bad: 1, story: 1, journal: 1 }, 'info') };
+  if (Array.isArray(l.choices)) {
+    out.choices = l.choices.slice(0, 4).map(c => [str(arr(c)[0], '', 20), str(arr(c)[1], '', 80)]);
+    out.story = str(l.story, '', 20);
+    if (out.choices.some(c => c[0] === l.chosen)) out.chosen = l.chosen;
+  }
+  return out;
+}
+function cleanDeal(o) { return { story: ['bridge', 'hall'].includes(o.story) ? o.story : undefined, id: int(o.id), company: str(o.company, 'A customer', 60), item: oneOf(o.item, ITEMS, 'log'), qty: clamp(int(o.qty, 1), 1, 10000), price: Math.max(0, num(o.price)), days: Math.max(1, int(o.days, 5)), expires: int(o.expires), negotiated: !!o.negotiated, deadline: int(o.deadline), delivered: Math.max(0, int(o.delivered)) }; }
 
 function restoreGame(d) {
   if (!d || typeof d !== 'object' || d.format !== SAVE_FORMAT) throw new SaveError('That file is not a Heartwood Mill save.');
@@ -85,7 +93,7 @@ function restoreGame(d) {
       const x = int(t.x), y = int(t.y);
       if (!inMap(x, y) || !G.tiles[idx(x, y)] || G.tree[idx(x, y)]) continue;
       const tr = addTree(x, y, oneOf(t.sp, TREE_SPECIES, 'spruce'), Math.max(0, num(t.age)));
-      Object.assign(tr, { maxAge: Math.max(1, num(t.maxAge, tr.maxAge)), v: clamp(int(t.v), 0, 2), sick: Math.max(0, int(t.sick)), dead: !!t.dead, fallen: !!t.fallen, deadDays: Math.max(0, int(t.deadDays)), mark: !!t.mark });
+      Object.assign(tr, { maxAge: Math.max(1, num(t.maxAge, tr.maxAge)), v: clamp(int(t.v), 0, 2), sick: Math.max(0, int(t.sick)), dead: !!t.dead, fallen: !!t.fallen, deadDays: Math.max(0, int(t.deadDays)), mark: !!t.mark, fire: clamp(num(t.fire), 0, 30), charred: !!t.charred });
       if (tr.sp === 'ancient') { tr.v = 0; const s = G.secrets[int(t.secret, -1)]; if (s && s.kind === 'ancient') tr.secret = s; }
     }
     for (const b of arr(d.buildings).map(obj)) {
@@ -158,6 +166,18 @@ function restoreGame(d) {
     // saves from before the tutorial existed: skip it rather than replay it mid-game
     G.tutorialOff = d.tutorialOff === undefined ? doneGoals.length > 0 : !!d.tutorialOff;
     G.initialForest = Math.max(1, num(d.initialForest, forestScore()));
+    // the story; saves from before it existed start it at chapter 2 once the walkthrough is behind them
+    const so = obj(d.story);
+    G.story = newStory();
+    G.story.chapter = clamp(int(so.chapter, G.tutorialOff || !currentStep() ? 2 : 1), 1, CHAPTERS.length);
+    G.story.done = arr(so.done).filter(id => typeof id === 'string').slice(0, 60);
+    G.story.journal = clamp(int(so.journal), 0, JOURNAL.length);
+    G.story.daysIn = Math.max(0, int(so.daysIn));
+    G.story.fireAt = typeof so.fireAt === 'number' && isFinite(so.fireAt) ? so.fireAt : null;
+    G.story.ended = !!so.ended;
+    const fl = obj(so.flags);
+    G.story.flags = { rival: ['refuse', 'truce'].includes(fl.rival) ? fl.rival : undefined, bridge: !!fl.bridge, hall: !!fl.hall, fireStarted: !!fl.fireStarted };
+    if (!G.secrets.some(s => s.kind === 'journal')) placeJournalSecrets();
     G.health = int(d.health, 100); G.warned = int(d.warned, 100); G.lowCash = int(d.lowCash);
     const rf_ = obj(d.rivalFlood);
     G.rivalFlood = ITEMS[rf_.item] ? { item: rf_.item, until: int(rf_.until) } : null;

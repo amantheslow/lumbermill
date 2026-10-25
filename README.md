@@ -6,6 +6,18 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 
 You start small and calm: the Mill Office, one tent, a campfire, two lumberjacks, 2,000 coins, and the clock stopped. A guided walkthrough shows one instruction at a time on a coach card, with a bouncing arrow pointing at the exact button, worker, trees or map spot to use next. The interface appears piece by piece as you need it: first the map, then zoom, the Fell tool, the clock, the factory, power and conveyor tools, camp buildings, and finally the Ledger. A cleared yard by camp, with see-through outlines, shows where your first Log Drop, Sawmill, Steam Engine, Trade Depot and conveyors go. Letters, random events and machine wear stay off until the walkthrough ends. You can skip it from the card, or bring it back from the **?** button.
 
+## The story
+
+After the walkthrough (Chapter 1), the story runs over five more chapters, each with its own goals:
+
+2. **Making a Name.** Sell planks, fill a contract and hire a mechanic.
+3. **The Fernhollow Bridge.** The nearby town lost its bridge in a flood and needs 60 planks. Its mayor also asks about Edda Rowan, who ran the mill forty years ago.
+4. **Grindstone's Offer.** The rival mill offers a truce. Refuse, and your crew cheers but price cuts come twice as often. Accept, and the price cuts stop but Grindstone takes a tenth of your depot sales. The letter opens itself and waits for your answer.
+5. **The Dry Summer.** A fire breaks out in the forest. Burning trees light their neighbours, and every free hand rushes to douse them, faster with a well nearby. Unchecked, a fire can take dozens of trees. From now on, summers can bring fire.
+6. **Heartwood.** Furnish Fernhollow's new town hall with 12 tables, grow the forest past its original cover, and find the rest of Edda's journal. Finishing earns the Heartwood Award, then free play.
+
+Edda's journal is six pages hidden in the old ranger station, under the Ancient Oak, and lying loose in the forest. Read in order, they tell how the first mill was lost, and your story echoes hers. The **Story** tab in the Mill Ledger lists the chapters and the pages you've found.
+
 ## What's in the demo
 
 - **Living forest.** A procedurally generated island of spruce, pine, maple and birch. Trees grow from sapling to old age, seed new saplings nearby, die and fall, and catch blight that spreads. A fog of war hides the woods until your staff or a survey crew explore them, and five secrets are hidden in the forest.
@@ -55,5 +67,6 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 | `js/sim.js` | World generation, forest lifecycle, buildings, conveyors, power, staff AI and the economy |
 | `js/render.js` | Isometric renderer: cached ground, depth-sorted sprites, day/night lighting |
 | `js/ui.js` | HUD, inspector, the Mill Ledger, and mouse, touch and keyboard input |
+| `js/story.js` | Chapters, Edda's journal, letters that ask for an answer, forest fires and the ending |
 | `js/save.js` | Save files: writes the mill to JSON and checks and restores it on load |
 | `js/main.js` | Boot, title screen and the main loop |

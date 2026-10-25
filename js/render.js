@@ -253,6 +253,7 @@ function render(now) {
     if (f.k === 'puff') { const a = clamp(f.life / f.max, 0, 1) * 0.7; ctx.fillStyle = f.col + a + ')'; const r = (1 - f.life / f.max) * 3 + 1.5; ctx.fillRect(Math.round(sx - r), Math.round(sy - r), Math.round(r * 2), Math.round(r * 2)); }
     else if (f.k === 'chip') { ctx.fillStyle = f.col; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1); }
     else if (f.k === 'spark') { ctx.fillStyle = '#ffe28a'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1); }
+    else if (f.k === 'water') { ctx.fillStyle = '#9fd1ff'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 2); }
     else if (f.k === 'z') { ctx.fillStyle = 'rgba(230,236,255,' + clamp(f.life, 0, 1) + ')'; const x = Math.round(sx), y = Math.round(sy); ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 1, y + 1, 1, 1); ctx.fillRect(x, y + 2, 3, 1); }
   }
   drawWeather(ctx, time);
@@ -265,7 +266,7 @@ function drawTree(ctx, t, sx, sy, fog, time) {
   const st = treeStage(t);
   let s;
   const set = ART.seasons[R.season];
-  if (t.dead) { s = t.fallen ? ART.fallen : (fog ? ART.deadFog : ART.dead)[t.v]; if (R.season === 3 && !fog) s = winterOf(s); }
+  if (t.dead) { s = t.fallen ? ART.fallen : (fog ? ART.deadFog : t.charred ? ART.charred : ART.dead)[t.v]; if (R.season === 3 && !fog) s = winterOf(s); }
   else s = (fog ? set.fog : t.sick ? set.sick : set.trees)[t.sp][st][t.sp === 'ancient' ? 0 : t.v];
   let x = sx;
   if (t.shake > 0) x += Math.sin(time * 60) > 0 ? 1 : -1;
@@ -273,6 +274,11 @@ function drawTree(ctx, t, sx, sy, fog, time) {
   if (fog) return;
   if (t.mark) { // red ribbon on the trunk
     ctx.fillStyle = '#e04a3a'; ctx.fillRect(x - 2, sy - 6, 4, 2); ctx.fillStyle = '#ff9a80'; ctx.fillRect(x - 2, sy - 6, 1, 1);
+  }
+  if (t.fire > 0) { // flames climbing the canopy
+    drawFlame(ctx, x - 3, sy - 6, time + t.x, 0.9);
+    drawFlame(ctx, x + 3, sy - 14, time * 1.3 + t.y, 1.1);
+    drawFlame(ctx, x, sy - 22, time * 0.9 + t.x * 2, 0.8);
   }
   if (t.sick && !t.dead) { ctx.fillStyle = '#c9a23a'; ctx.fillRect(x + 3, sy - 4, 1, 1); ctx.fillRect(x - 4, sy - 9, 1, 1); }
   if (UI.sel && UI.sel.kind === 'tree' && UI.sel.ref === t) ctx.drawImage(R.hl.sel, sx - 16, sy - HTH);
@@ -419,6 +425,10 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
     if (b.type === 'hq') { const [x, y] = tileTop(b.x + 1.5, b.y + 2.6); glow(x, y - 10, 34, '255,200,110', dark * 0.5); }
     if (b.type === 'steam' && b.gen > 0) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 4, 22, '255,120,40', dark * 0.6); }
     if ((b.type === 'sawmill' || b.type === 'workshop') && b.active) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 8, 20, '255,210,140', dark * 0.4); }
+  }
+  for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+    const t = G.tree[idx(x, y)];
+    if (t && t.fire > 0) { const [gx, gy] = tileTop(x + 0.5, y + 0.5); glow(gx, gy - 14, 40, '255,110,40', Math.max(0.25, dark) * 0.8); }
   }
   // fireflies drifting through the trees (none in winter)
   if (R.season === 3) R.fireflies.length = 0;

@@ -82,6 +82,7 @@ const SECRET_INFO = {
   ruin: { name: 'Old Ranger Station' },
   mushrooms: { name: 'Fairy Ring' },
   blueprint: { name: 'Surveyor\'s Cache' },
+  journal: { name: 'Loose Journal Page' },
   ancient: { name: 'The Ancient Oak' },
 };
 
@@ -128,8 +129,8 @@ function spend(n, why) {
   if (G.money < n) { toast(`Not enough money for ${why} (${fmt(n)} needed).`, 'bad'); return false; }
   G.money -= n; G.stats.spent += n; return true;
 }
-function letter(from, subject, body, kind = 'info') {
-  G.letters.unshift({ id: ++G.uid, from, subject, body, day: dayOf(), read: false, kind });
+function letter(from, subject, body, kind = 'info', extra = null) {
+  G.letters.unshift({ id: ++G.uid, from, subject, body, day: dayOf(), read: false, kind, ...(extra || {}) });
   if (typeof onLetter === 'function') onLetter();
 }
 function marketPrice(item) { return Math.max(1, ITEMS[item].base * G.market[item].m); }
@@ -155,7 +156,7 @@ function blankState(seed) {
     stats: { logsCut: 0, made: {}, sold: {}, revenue: 0, spent: 0, planted: 0, secrets: 0, contracts: 0, history: [] },
     goals: [], dirty: { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 }, powerDirty: true, frame: 0, lastDay: 0,
     initialForest: 0, health: 100, warned: 100, rivalFlood: null, lowCash: 0, reserved: new Set(),
-    hq: null, candDay: 0, fileSavedAt: null, autoSavedAt: null,
+    hq: null, candDay: 0, fileSavedAt: null, autoSavedAt: null, story: newStory(),
   };
   for (const k of Object.keys(ITEMS)) g.market[k] = { m: 1, phase: rand() * 6.28, hist: [] };
   return g;
@@ -227,6 +228,7 @@ function newGame(seed) {
   refreshCandidates();
   for (let i = 0; i < 2; i++) newOffer(true);
   chooseYard();
+  placeJournalSecrets();
   G.initialForest = forestScore();
   setupGoals();
   return G;
@@ -305,6 +307,7 @@ function discoverSecret(s) {
     letter('Forestry Board', 'You found the Ancient Oak',
       `Your crew has come across an oak older than any record we hold. Trees near it seed twice as readily.\n\nIt cannot be felled. Please keep it that way.`, 'good');
     toast('Secret found: the Ancient Oak!', 'good');
+    findJournalPage(); // Edda left a page tucked in its roots
   } else toast(`Something glints in the forest: ${SECRET_INFO[s.kind].name}. Click it to investigate.`, 'good');
 }
 function collectSecret(s) {
@@ -317,10 +320,13 @@ function collectSecret(s) {
   } else if (s.kind === 'ruin') {
     const n = ri(200, 400); money(n, s.x, s.y);
     revealCircle(s.x, s.y, 9);
-    letter('Mill Ledger', 'The old ranger station', `Inside the ruined ranger station: a hand-drawn map of the surrounding woods, and ${fmt(n)} worth of salvageable tools.`, 'good');
+    letter('Mill Ledger', 'The old ranger station', `Inside the ruined ranger station: a hand-drawn map of the surrounding woods, ${fmt(n)} worth of salvageable tools, and a page torn from somebody's journal.`, 'good');
+    findJournalPage();
   } else if (s.kind === 'mushrooms') {
     for (const w of G.workers) w.mood.morale = Math.min(100, w.mood.morale + 25);
     letter('Mill Ledger', 'A fairy ring', `A perfect ring of mushrooms. The crew can't stop talking about it. Everyone's morale is up.`, 'good');
+  } else if (s.kind === 'journal') {
+    findJournalPage();
   } else if (s.kind === 'blueprint') {
     const left = RESEARCH.filter(r => !has(r.id) && (!r.req || has(r.req)) && (!G.research.active || G.research.active.id !== r.id));
     if (left.length) {
@@ -421,7 +427,7 @@ function sellItem(item, n, b, priceFactor = 1) {
     if (c.delivered >= c.qty) completeContract(c);
     if (n <= 0) return;
   }
-  const v = marketPrice(item) * n * priceFactor;
+  const v = marketPrice(item) * n * priceFactor * (G.story.flags.rival === 'truce' ? 0.9 : 1); // Grindstone's tenth
   G.stats.sold[item] = (G.stats.sold[item] || 0) + n;
   G.money += v; G.stats.revenue += v;
   b.saleText = (b.saleText || 0) + v;
@@ -753,6 +759,7 @@ function think(w) {
     if (o && goToBuilding(w, o, { type: 'use', what: 'well', time: 2.5 })) { w.thought = 'I could really use a drink.'; return; }
     n.hydration = 60; w.mood.morale -= 6; w.thought = 'No well here. Pond water it is.'; return;
   }
+  if (thinkFire(w)) return;
   const sleepy = n.energy < 15 || (isNight() && n.energy < (PERSONALITIES[w.pers].sleep ? 35 : 70));
   if (sleepy) {
     let bed = w.home && G.bmap.get(w.home);
@@ -781,12 +788,27 @@ function think(w) {
   if (!w.path) { w.state = 'act'; w.task = { type: 'idle', time: 2 }; w.timer = 2; }
 }
 
+// every hand to a fire: up to three people per burning tree, nearest first
+function thinkFire(w) {
+  if (G.story.spotAt && G.t < G.story.spotAt) return false; // nobody has seen the smoke yet
+  let best = null, bd = 1e9;
+  for (const t of G.trees) {
+    if (!(t.fire > 0)) continue;
+    const crowd = G.workers.filter(o => o.task && o.task.type === 'douse' && o.task.tree === t).length;
+    if (crowd >= 3) continue;
+    const d = dist(t.x, t.y, w.x, w.y) + crowd * 4;
+    if (d < bd) { bd = d; best = t; }
+  }
+  if (!best || bd > 50) return false;
+  if (walkNear(w, best.x, best.y, { type: 'douse', tree: best })) { w.thought = pick(['Fire! Grab a bucket!', 'Not on my watch.', 'Water, quick!']); return true; }
+  return false;
+}
 function thinkLumberjack(w) {
   // fell another tree close by before the long walk back, up to an armful of 4 logs
   if (w.carry && w.carry.n < 4) {
     let near = null, nd = 4.5;
     for (const t of G.trees) {
-      if (t.res || t.sp === 'ancient' || t.unreach === dayOf()) continue;
+      if (t.res || t.fire || t.sp === 'ancient' || t.unreach === dayOf()) continue;
       const d = dist(t.x, t.y, w.x, w.y);
       if (d >= nd) continue;
       const st = treeStage(t);
@@ -802,7 +824,7 @@ function thinkLumberjack(w) {
   const c = bCenter(G.hq);
   let best = null, bs = 1e9;
   for (const t of G.trees) {
-    if (t.res || t.sp === 'ancient' || t.unreach === dayOf() || !G.reveal[idx(t.x, t.y)]) continue;
+    if (t.res || t.fire || t.sp === 'ancient' || t.unreach === dayOf() || !G.reveal[idx(t.x, t.y)]) continue;
     const d = dist(t.x, t.y, w.x, w.y);
     let score;
     if (t.mark) score = d - 100;
@@ -906,6 +928,7 @@ function arrive(w) {
   w.state = 'act';
   switch (t.type) {
     case 'use': w.timer = t.time; break;
+    case 'douse': w.timer = (wellNear(t.tree.x, t.tree.y) ? 1.6 : 3.4) / Math.max(0.5, workSpeed(w)); break;
     case 'sleep': w.timer = 0; w.state = 'sleep'; w.hidden = t.bed; w.thought = 'Zzz...'; break;
     case 'deliver': w.timer = 0.6; break;
     case 'chop': {
@@ -951,6 +974,8 @@ function finishAct(w) {
       }
       break;
     }
+    // a doused tree is soaked and won't relight for a while
+    case 'douse': if (t.tree.fire > 0) { t.tree.fire = 0; t.tree.wet = 40; fxText(t.tree.x + 0.5, t.tree.y + 0.5, 'Out!', '#9fd1ff'); gainXp(w, 2); } break;
     case 'treat': if (t.tree && !t.tree.dead) { t.tree.sick = 0; fxText(t.tree.x + 0.5, t.tree.y + 0.5, 'Cured', '#9fe39a'); gainXp(w, 2); } t.tree && (t.tree.res = 0); break;
     case 'plant': {
       const x = t.tile % MAP, y = (t.tile / MAP) | 0;
@@ -987,6 +1012,11 @@ function updateWorker(w, dt) {
       w.flip = isoX(tr.x + 0.5, tr.y + 0.5) < isoX(w.x, w.y); w.back = (tr.x + tr.y) < (w.x + w.y - 1);
       if (Math.random() < dt * 3) fxChips(tr.x + 0.5, tr.y + 0.5);
     }
+    if (t && t.type === 'douse') {
+      if (!(t.tree.fire > 0)) { w.task = null; w.state = 'idle'; w.cool = 0.2; return; }
+      w.flip = isoX(t.tree.x + 0.5, t.tree.y + 0.5) < isoX(w.x, w.y);
+      if (Math.random() < dt * 8) G.fx.push({ k: 'water', x: isoX(w.x, w.y) + (w.flip ? -4 : 4), y: isoY(w.x, w.y) - 10, vx: (w.flip ? -1 : 1) * rf(10, 20), vy: rf(-18, -8), life: 0.5 });
+    }
     if (t && t.type === 'repair') {
       const b = t.b;
       if (!G.bmap.has(b.id)) { cancelTask(w); return; }
@@ -1002,7 +1032,8 @@ function updateWorker(w, dt) {
     n.energy = Math.min(100, n.energy + hours * rate);
     if (Math.random() < dt * 0.6) G.fx.push({ k: 'z', x: isoX(w.x, w.y) + 3, y: isoY(w.x, w.y) - 14, vx: 3, vy: -6, life: 1.6 });
     const h = hourOf();
-    if (n.energy >= 99 || (n.energy > 60 && h > 6.5 && h < 19) || n.hydration < 10 || n.bladder > 92) {
+    const alarm = n.energy > 20 && anyFire(); // a fire wakes the camp
+    if (alarm || n.energy >= 99 || (n.energy > 60 && h > 6.5 && h < 19) || n.hydration < 10 || n.bladder > 92) {
       if (!(w.task && w.task.bed) && w.task) w.mood.morale -= 8;
       w.hidden = false; w.task = null; w.state = 'idle'; w.cool = 0.3; w.thought = 'Morning already?';
     }
@@ -1143,7 +1174,10 @@ function newDay() {
     m.hist.push(+m.m.toFixed(3)); if (m.hist.length > 30) m.hist.shift();
   }
   if (G.rivalFlood && day >= G.rivalFlood.until) G.rivalFlood = null;
-  if (!G.rivalFlood && day > 5 && !quiet && chance(0.07)) {
+  G.story.daysIn++;
+  const rival = G.story.flags.rival;
+  if (!quiet && G.story.chapter >= 5 && season === 1 && chance(0.06)) igniteForest(false); // summers are dry now
+  if (!G.rivalFlood && day > 5 && !quiet && rival !== 'truce' && chance(rival === 'refuse' ? 0.14 : 0.07)) {
     const item = pick(unlockedItems());
     G.rivalFlood = { item, until: day + ri(4, 7) };
     letter(RIVAL, `${ITEMS[item].name} at rock-bottom prices`, `${RIVAL} is pleased to announce a clearance of ${ITEMS[item].name.toLowerCase()} at prices no small mill can match. Our customers thank us.\n\n(Market prices for ${ITEMS[item].name.toLowerCase()} will be depressed for a few days.)`, 'bad');
@@ -1154,6 +1188,7 @@ function newDay() {
   if (G.offers.length < maxOffers && chance(has('trade') ? 0.7 : 0.45)) newOffer();
   for (const c of [...G.contracts]) {
     if (day > c.deadline && c.delivered < c.qty) {
+      if (c.story) { storyContractLate(c); continue; }
       G.contracts.splice(G.contracts.indexOf(c), 1);
       const pen = Math.round(c.qty * c.price * 0.15);
       G.money -= pen; G.rep = Math.max(-5, G.rep - 1);
@@ -1193,8 +1228,9 @@ function completeContract(c) {
   G.contracts.splice(G.contracts.indexOf(c), 1);
   const v = Math.round(c.qty * c.price);
   money(v);
-  G.rep = Math.min(10, G.rep + 1); G.stats.contracts++;
-  letter(c.company, 'Delivery received, payment enclosed', `All ${c.qty} ${ITEMS[c.item].name.toLowerCase()} arrived in good order. Please find ${fmt(v)} enclosed. We'll think of you next time.`, 'good');
+  G.rep = Math.min(10, G.rep + (c.story ? 3 : 1)); G.stats.contracts++;
+  if (c.story) storyContractDone(c);
+  else letter(c.company, 'Delivery received, payment enclosed', `All ${c.qty} ${ITEMS[c.item].name.toLowerCase()} arrived in good order. Please find ${fmt(v)} enclosed. We'll think of you next time.`, 'good');
   toast(`Contract complete: +${fmt(v)}`, 'good');
   sfx('cash');
 }
@@ -1240,23 +1276,19 @@ function setupGoals() {
     { id: 't_research', tut: true, target: '.tbtn[data-tool=mill]', tab: 'research', inner: '[data-act=research][data-v=carpentry]', text: 'Research Carpentry', hint: 'In the Ledger, open Research and start Carpentry. It unlocks a Workshop that turns planks into chairs.', reward: 100, test: () => has('carpentry') || (G.research.active && G.research.active.id === 'carpentry') },
     { id: 't_trade', tut: true, reveal: ['letters'], target: '.tbtn[data-tool=mill]', tab: 'trade', inner: '[data-act=accept]', text: 'Take on a contract', hint: 'Companies pay above market price for deliveries. In the Ledger, open Trade and accept an offer.', reward: 100, test: () => G.contracts.length > 0 || G.stats.contracts > 0 },
     { id: 't_done', tut: true, info: true, button: 'Finish', text: 'Over to you', hint: 'That is the whole loop. Goals at the top left suggest what to try next, and the ? button lists every control. Good luck with the mill!', test: ack('t_done') },
-    { id: 'planks', text: 'Sell 30 planks', reward: 400, test: () => (G.stats.sold.plank || 0) >= 30 },
-    { id: 'craft', text: 'Craft a chair in a Workshop', reward: 600, test: () => (G.stats.made.chair || 0) >= 1 },
-    { id: 'contract', text: 'Complete a trade contract', reward: 800, test: () => G.stats.contracts >= 1 },
-    { id: 'mech', text: 'Hire a Mechanic to keep machines running', reward: 200, test: () => staff('mechanic') },
-    { id: 'secrets', text: 'Find 3 forest secrets', reward: 700, test: () => G.stats.secrets >= 3 },
-    { id: 'green', text: 'Plant 25 saplings', reward: 500, test: () => G.stats.planted >= 25 },
   ];
 }
 function tutorialActive() { return !!currentStep(); }
+function anyFire() { return G.trees.some(t => t.fire > 0); }
 // the welcome letters wait until the walkthrough is over, so the start stays quiet
 function finishTutorial() {
-  if (G.tutor.lettersSent) return;
+  if (G.tutor.lettersSent) { beginStory(); return; }
   G.tutor.lettersSent = true;
   letter('Forestry Board', 'Welcome to the valley',
     `Congratulations on your lease of the old mill site.\n\nThe forest here is yours to manage. Fell trees for timber, but replant what you take: we survey the woods every season, and a mill that strips its forest will be fined.\n\nGood luck.`);
   letter('Mill Ledger', 'How the mill makes money',
     `Lumberjacks carry logs to the nearest Log Drop, Steam Engine or the Mill Office.\n\nLogs left at the office are sold to a passing hauler at a poor price. You earn far more by sawing them into planks and crafting furniture, then sending it by conveyor to a Trade Depot.\n\nTrade companies post contracts in the Trade tab. They pay above market if you deliver on time.`);
+  beginStory();
 }
 function currentStep() { return G.tutorialOff ? null : G.goals.find(g => g.tut && !g.done) || null; }
 function checkGoals() {
@@ -1267,10 +1299,6 @@ function checkGoals() {
     sfx(step.info ? 'click' : 'coin');
     if (!currentStep()) finishTutorial();
     if (typeof onStepDone === 'function') onStepDone(step);
-  }
-  for (const g of G.goals) if (!g.tut && !g.done && g.test()) {
-    g.done = true; money(g.reward);
-    toast(`Goal complete: ${g.text} (+${fmt(g.reward)})`, 'good');
   }
 }
 
@@ -1290,6 +1318,7 @@ function simStep(dt) {
     }
   }
   updatePower(dt);
+  updateFire(dt);
   updateMachines(dt);
   updateBelts(dt);
   for (const w of [...G.workers]) { updateWorker(w, dt); updateMood(w, dt); }
@@ -1299,4 +1328,5 @@ function simStep(dt) {
     fxPuff(x, y - 36, 'rgba(225,225,225,', 1, 1);
   }
   checkGoals();
+  checkStory();
 }

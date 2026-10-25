@@ -82,6 +82,9 @@ function buildHud() {
   document.addEventListener('click', e => { if (e.target.closest('button')) sfx('click'); }, true);
   $('#chip-forest img').src = I.tree; $('#chip-power img').src = I.power; $('#chip-staff img').src = I.people; $('#chip-letters img').src = I.letter;
   $('#chip-research img').src = I.research;
+  $('#chip-fire img').src = I.fire;
+  $('#chip-fire').addEventListener('click', () => { const t = G.trees.find(t => t.fire > 0); if (t) centerOn(t.x, t.y); });
+  $('#ending').addEventListener('click', e => { if (e.target.closest('[data-end]')) $('#ending').hidden = true; });
   const tb = $('#toolbar');
   const tools = [
     ['select', 'Select', 'Select and inspect', I.select, 'V'], ['camp', 'Camp', 'Camp buildings', I.camp, '1'], ['factory', 'Factory', 'Factory buildings', I.factory, '2'],
@@ -307,6 +310,9 @@ function updateHud() {
   $('#chip-power span').textContent = `${Math.round(dem)}/${Math.round(sup)}`;
   $('#chip-power').className = 'chip ' + (dem > sup + 0.5 ? 'bad' : '');
   $('#chip-staff span').textContent = G.workers.length;
+  const fires = G.trees.filter(t => t.fire > 0).length;
+  $('#chip-fire').hidden = !fires;
+  if (fires) $('#chip-fire span').textContent = fires;
   const unread = G.letters.filter(l => !l.read).length;
   $('#chip-letters span').textContent = unread;
   $('#chip-letters').classList.toggle('pulse', unread > 0);
@@ -318,11 +324,10 @@ function updateHud() {
   applyReveal(step);
   renderCoach(step);
   if (!step) {
-    const goals = G.goals.filter(g => !g.done && !g.tut).slice(0, 3);
-    const rest = G.goals.filter(g => !g.tut);
-    $('#goals-title').textContent = 'Goals';
-    $('#goal-count').textContent = `${rest.filter(g => g.done).length}/${rest.length} done`;
-    const html = goals.length ? goals.map(g => `<li><span class="box"></span>${esc(g.text)} <em>${coin(g.reward)}</em></li>`).join('') : '<li>All goals complete. The valley is yours.</li>';
+    const st = G.story, goals = storyGoals(), c = chapterDef();
+    $('#goals-title').textContent = st.ended ? 'Free play' : st.chapter >= 2 ? `Chapter ${st.chapter}: ${c.title}` : 'Goals';
+    $('#goal-count').textContent = `${goals.filter(g => st.done.includes(g.id)).length}/${goals.length}`;
+    const html = goals.map(g => { const ok = st.done.includes(g.id); return `<li class="${ok ? 'ok' : ''}"><span class="box"></span>${esc(g.text)}${g.reward && !ok ? ` <em>${coin(g.reward)}</em>` : ''}</li>`; }).join('') || '<li>Finish the walkthrough to begin the story.</li>';
     if (html !== lastHud) { $('#goal-list').innerHTML = html; lastHud = html; }
   }
   applyHighlights(step);
@@ -435,12 +440,12 @@ function openPanel(tab) {
 function closePanel() { UI.panelOpen = false; $('#panel').hidden = true; document.body.classList.remove('panel-open'); }
 function renderPanel() {
   if (!UI.panelOpen) return;
-  const tabs = [['overview', 'Overview'], ['staff', 'Staff'], ['hire', 'Hire'], ['research', 'Research'], ['trade', 'Trade'], ['letters', 'Letters'], ['policies', 'Policies'], ['game', 'Save']];
+  const tabs = [['overview', 'Overview'], ['staff', 'Staff'], ['hire', 'Hire'], ['research', 'Research'], ['trade', 'Trade'], ['letters', 'Letters'], ['story', 'Story'], ['policies', 'Policies'], ['game', 'Save']];
   const unread = G.letters.filter(l => !l.read).length;
   const th = tabs.map(([id, n]) => `<button data-tab="${id}" class="${UI.tab === id ? 'on' : ''}">${n}${id === 'letters' && unread ? ` <i class="badge">${unread}</i>` : ''}${id === 'trade' && G.offers.length ? ` <i class="badge soft">${G.offers.length}</i>` : ''}</button>`).join('');
   const tabEl = $('#panel-tabs');
   if (tabEl._html !== th) { tabEl.innerHTML = th; tabEl._html = th; }
-  const fn = { overview: panelOverview, staff: panelStaff, hire: panelHire, research: panelResearch, trade: panelTrade, letters: panelLetters, policies: panelPolicies, game: panelGame }[UI.tab];
+  const fn = { overview: panelOverview, staff: panelStaff, hire: panelHire, research: panelResearch, trade: panelTrade, letters: panelLetters, story: panelStory, policies: panelPolicies, game: panelGame }[UI.tab];
   const html = fn();
   applyHighlights(currentStep());
   const body = $('#panel-body');
@@ -549,7 +554,40 @@ function panelLetters() {
   const sel = G.letters.find(l => l.id === UI.letterSel) || G.letters[0];
   sel.read = true;
   return `<div class="letters"><ul>` + G.letters.map(l => `<li><button data-act="letter" data-v="${l.id}" class="${l === sel ? 'on' : ''} ${l.read ? '' : 'unread'} ${l.kind}"><b>${esc(l.subject)}</b><span>${esc(l.from)}, ${dateStr(l.day)}</span></button></li>`).join('') +
-    `</ul><article class="paper"><header><b>${esc(sel.subject)}</b><span>From ${esc(sel.from)}<br>${dateStr(sel.day)}</span></header>${sel.body.split('\n\n').map(p => `<p>${esc(p)}</p>`).join('')}</article></div>`;
+    `</ul><article class="paper ${sel.kind === 'journal' ? 'journal' : ''}"><header><b>${esc(sel.subject)}</b><span>From ${esc(sel.from)}<br>${dateStr(sel.day)}</span></header>${sel.body.split('\n\n').map(p => `<p>${esc(p)}</p>`).join('')}${answerHtml(sel)}</article></div>`;
+}
+function answerHtml(l) {
+  if (!l.choices) return '';
+  if (l.chosen) { const c = l.choices.find(c => c[0] === l.chosen); return `<p class="answered">You answered: ${esc(c ? c[1] : l.chosen)}</p>`; }
+  return `<div class="answers">${l.choices.map(([id, label]) => `<button class="go" data-act="answer" data-id="${l.id}" data-v="${esc(id)}">${esc(label)}</button>`).join('')}</div>`;
+}
+function panelStory() {
+  const st = G.story;
+  const chapters = CHAPTERS.map(c => {
+    const state = c.n < st.chapter || st.ended ? 'done' : c.n === st.chapter ? 'now' : 'later';
+    const goals = state === 'now' && c.goals.length ? `<ul>${c.goals.map(g => `<li class="${st.done.includes(g.id) ? 'ok' : ''}"><span class="box"></span>${esc(g.text)}</li>`).join('')}</ul>` : '';
+    return `<li class="ch ${state}"><b>Chapter ${c.n}: ${state === 'later' ? '???' : esc(c.title)}</b>${state === 'done' ? '<span>Complete</span>' : state === 'now' ? '<span>In progress</span>' : ''}${goals}</li>`;
+  }).join('');
+  const pages = JOURNAL.map(([when, text], i) => i < st.journal ? `<article class="paper journal"><header><b>${esc(when)}</b><span>Page ${i + 1}</span></header><p>${esc(text)}</p></article>` : `<p class="missing">Page ${i + 1}: still somewhere in the forest</p>`).join('');
+  return `<div class="grid2"><section><h4>Chapters</h4><ol class="chapters">${chapters}</ol>${st.flags.rival ? `<p class="note">Grindstone: ${st.flags.rival === 'truce' ? 'truce, they take a tenth of depot sales' : 'you refused them, so expect price cuts'}.</p>` : ''}</section>
+    <section><h4>Edda Rowan's journal (${st.journal} of ${JOURNAL.length})</h4>${pages}<p class="note">Pages turn up in the old ranger station, under the Ancient Oak, and lying loose in the forest. Explore with your arborists or the Survey tool.</p></section></div>`;
+}
+// a story letter that needs a decision opens itself and pauses the game
+function onAskAnswer() {
+  const l = G.letters.find(l => l.choices && !l.chosen);
+  if (!l) return;
+  UI.letterSel = l.id; UI.resumeSpeed = G.speed || 1;
+  setSpeed(0);
+  openPanel('letters');
+}
+function onStoryEnd() {
+  const s = G.stats;
+  $('#ending').innerHTML = `<h2>The Heartwood Award</h2><div class="end-body">
+    <p>You built a mill that feeds a town, kept your crew together, and left the forest thicker than you found it. Edda Rowan would have been proud.</p>
+    <dl><dt>Logs felled</dt><dd>${fmt(s.logsCut)}</dd><dt>Saplings planted</dt><dd>${fmt(s.planted)}</dd><dt>Planks made</dt><dd>${fmt(s.made.plank || 0)}</dd><dt>Furniture made</dt><dd>${fmt((s.made.chair || 0) + (s.made.table || 0) + (s.made.crate || 0))}</dd><dt>Contracts filled</dt><dd>${fmt(s.contracts)}</dd><dt>Forest cover</dt><dd>${G.health}%</dd><dt>Days in the valley</dt><dd>${dayOf() + 1}</dd></dl>
+    <p class="note">The story is over, but the mill is yours. A few free-play goals are waiting in the corner.</p>
+    <div class="row-btns"><button class="go" data-end>Keep playing</button></div></div>`;
+  $('#ending').hidden = false;
 }
 function panelPolicies() {
   const sp = ['spruce', 'maple'].concat(has('birch') ? ['birch'] : [], has('pine') ? ['pine'] : []);
@@ -611,6 +649,7 @@ function onAction(e) {
     case 'accept': { const o = G.offers.find(o => o.id === id); if (o) acceptOffer(o); break; }
     case 'negotiate': { const o = G.offers.find(o => o.id === id); if (o) negotiate(o); break; }
     case 'letter': UI.letterSel = +v; break;
+    case 'answer': { const l = G.letters.find(l => l.id === id); if (l) { answerLetter(l, v); if (!G.speed) setSpeed(UI.resumeSpeed || 1); } break; }
     case 'pol': G.policy[v] = b.checked; break;
     case 'radius': G.policy.chopRadius = +b.value; break;
     case 'species': G.plantSpecies = v; break;
@@ -874,6 +913,7 @@ function drawMinimap(full) {
       else if (!land) col = water;
       else if (G.occ[k]) col = G.occ[k] === G.hq.id ? hq : bld;
       else if (G.belt[k]) col = belt;
+      else if (G.tree[k] && G.tree[k].fire > 0) col = C('#ff5a2a');
       else if (G.tree[k] && G.tree[k].age > 3) col = G.tree[k].dead ? dead : C(MINI_TREE[G.tree[k].sp][se]);
       else col = G.tiles[k] === 2 ? path : grass;
       u[my * MINI.w + mx] = col;

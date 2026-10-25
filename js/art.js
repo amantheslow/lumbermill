@@ -575,6 +575,14 @@ function spriteSecret(kind) {
     }
     return { cv: b.toCanvas(), ax: 14, ay: 9 };
   }
+  if (kind === 'journal') { // a weathered notebook lying open on a stump
+    const b = new PixBuf(16, 14);
+    b.ellipse(8, 11, 6, 2.5, SHADOW);
+    b.rect(4, 8, 8, 3, P.woodD); b.ellipse(8, 8, 4, 1.5, C('#c49a6c'));
+    b.rect(3, 5, 5, 3, C('#efe2c4')); b.rect(8, 5, 5, 3, C('#e2d3ae')); b.rect(8, 5, 1, 3, C('#7a5a3a'));
+    b.rect(4, 6, 3, 1, C('#8a7a66')); b.rect(9, 6, 3, 1, C('#8a7a66'));
+    return { cv: b.toCanvas(), ax: 8, ay: 11 };
+  }
   // blueprint cache: a wooden lockbox with paper
   const b = new PixBuf(16, 14);
   b.ellipse(8, 11, 6, 2.5, SHADOW);
@@ -605,6 +613,7 @@ function buildIcons() {
   const speaker = (b) => { b.rect(2, 6, 3, 4, cream); b.poly([[5, 6], [9, 2], [9, 14], [5, 10]], cream); };
   I.soundOn = iconCanvas(b => { speaker(b); b.rect(11, 5, 1, 6, cream); b.rect(13, 3, 1, 10, cream); });
   I.soundOff = iconCanvas(b => { speaker(b); b.line(11, 5, 15, 10, red); b.line(15, 5, 11, 10, red); });
+  I.fire = iconCanvas(b => { b.poly([[8, 1], [13, 9], [12, 14], [4, 14], [3, 9]], C('#e2502a')); b.poly([[8, 6], [11, 11], [10, 14], [6, 14], [5, 11]], C('#f5c518')); });
   I.research = iconCanvas(b => { b.rect(6, 1, 4, 5, cream); b.poly([[6, 6], [10, 6], [14, 14], [2, 14]], cream); b.poly([[4.5, 10], [11.5, 10], [14, 14], [2, 14]], C('#5bb75f')); });
   return I;
 }
@@ -638,6 +647,7 @@ function bakeArt() {
     }
   }
   ART.dead = [0, 1, 2].map(makeDeadTree);
+  ART.charred = ART.dead.map(s => ({ cv: recolour(s.cv, c => { const [r, g, b, a] = unpack(c); return a < 200 ? c : pack(r * 0.35 + 8, g * 0.3 + 6, b * 0.3 + 6, a); }), ax: s.ax, ay: s.ay }));
   ART.deadFog = ART.dead.map(fogify);
   ART.fallen = makeFallenLog(); ART.stump = makeStump();
   const buildings = () => ({
@@ -652,7 +662,7 @@ function bakeArt() {
   // corners: ART.beltCorner[inDir][dir][frame]
   ART.beltCorner = [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(d => (d === i || d === (i + 2) % 4) ? null : [0, 1, 2, 3].map(f => spriteBelt(d, f, i))));
   ART.items = {}; for (const t of ['log', 'plank', 'crate', 'chair', 'table']) ART.items[t] = spriteItem(t);
-  ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint']) ART.secret[k] = spriteSecret(k);
+  ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint', 'journal']) ART.secret[k] = spriteSecret(k);
   ART.icons = buildIcons();
   ART.itemIcons = {}; for (const t of Object.keys(ART.items)) ART.itemIcons[t] = ART.items[t].cv.toDataURL();
 }
