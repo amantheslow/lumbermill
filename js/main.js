@@ -50,10 +50,11 @@ function startNew() {
     return;
   }
   $('#title').hidden = true; playing = true;
-  setSpeed(1);
+  setSpeed(tutorialActive() ? 0 : 1); // the walkthrough starts with the clock stopped
   lastAutoDay = dayOf();
   const c = bCenter(G.hq); centerOn(c.x + 1, c.y + 1);
-  toast('Your crew is ready. Follow the tutorial on the left.', 'good');
+  if (tutorialActive()) R.cam.y -= 40; // keep the camp clear of the coach card
+  updateHud();
 }
 
 function boot() {
@@ -81,6 +82,7 @@ function boot() {
 }
 
 function frame(now) {
+  requestAnimationFrame(frame); // scheduled first, so an error in one frame can't stop the game
   const dt = Math.min(0.1, lastFrame ? (now - lastFrame) / 1000 : 0);
   lastFrame = now;
   if (playing && G.speed > 0) {
@@ -94,9 +96,9 @@ function frame(now) {
   updateAmbience(dt, playing);
   panKeys(dt);
   render(now);
+  updatePointer();
   uiAcc += dt;
   if (uiAcc > 0.25) { uiAcc = 0; uiTick(); }
-  requestAnimationFrame(frame);
 }
 
 window.addEventListener('DOMContentLoaded', boot);

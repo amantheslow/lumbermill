@@ -39,6 +39,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 
 // ---------- toasts ----------
 function toast(msg, kind = 'info') {
+  if (G && G.goals && tutorialActive() && kind !== 'bad') return; // the coach card does the talking during the walkthrough
   if (kind === 'bad') sfx('bad');
   const el = document.createElement('div');
   el.className = 'toast ' + kind; el.textContent = msg;
@@ -47,7 +48,7 @@ function toast(msg, kind = 'info') {
   setTimeout(() => el.classList.add('out'), 4200);
   setTimeout(() => el.remove(), 4800);
 }
-function onLetter() { updateHud(); sfx('letter'); }
+function onLetter() { updateHud(); if (!tutorialActive()) sfx('letter'); }
 
 // ---------- helpers ----------
 function face(v) { return v >= 66 ? 'good' : v >= 36 ? 'ok' : 'bad'; }
@@ -99,12 +100,17 @@ function buildHud() {
   $('#help').addEventListener('click', e => {
     const b = e.target.closest('[data-help]'); if (!b) return;
     if (b.dataset.help === 'close') $('#help').hidden = true;
-    if (b.dataset.help === 'tutorial') { G.tutorialOff = false; $('#help').hidden = true; $('#goals').classList.remove('collapsed'); lastHud = ''; updateHud(); }
+    if (b.dataset.help === 'tutorial') { G.tutorialOff = false; $('#help').hidden = true; coachKey = ''; lastHud = ''; updateHud(); }
   });
-  $('#goal-list').addEventListener('click', e => {
-    if (!e.target.closest('[data-skip]')) return;
-    if (askConfirm('skip')) { G.tutorialOff = true; toast('Tutorial skipped. Reopen it any time from the ? button.'); }
-    lastHud = ''; updateHud();
+  $('#coach').addEventListener('click', e => {
+    const b = e.target.closest('[data-coach]'); if (!b) return;
+    if (b.dataset.coach === 'next') { const st = currentStep(); if (st) { G.tutor.ack[st.id] = true; checkGoals(); } }
+    if (b.dataset.coach === 'skip' && askConfirm('skip')) {
+      G.tutorialOff = true; finishTutorial();
+      if (!G.speed) setSpeed(1);
+      toast('Tutorial skipped. You can reopen it from the ? button.');
+    }
+    coachKey = ''; lastHud = ''; updateHud();
   });
   tb.addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
   $('#speed').addEventListener('click', e => { const b = e.target.closest('[data-speed]'); if (b) setSpeed(+b.dataset.speed); });
@@ -139,6 +145,7 @@ function setSpeed(s) {
   for (const b of document.querySelectorAll('#speed [data-speed]')) b.classList.toggle('on', +b.dataset.speed === s);
 }
 function pickTool(id) {
+  if (!toolShown(id)) return;
   if (id === 'mill') { UI.panelOpen ? closePanel() : openPanel(UI.tab); return; }
   if (id === 'camp' || id === 'factory' || id === 'power') { UI.flyout === id ? closeFlyout() : openFlyout(id); return; }
   closeFlyout();
@@ -165,6 +172,78 @@ function updateHint() {
   if (t === 'belt') extra = `<button data-hint="rotate">Rotate: ${DIR_NAMES[UI.beltDir]} (R)</button>`;
   if (t === 'chop' || t === 'plant') extra = `<button data-hint="unmark" class="${UI.unmark ? 'on' : ''}">${UI.unmark ? 'Unmarking' : 'Marking'} (Shift)</button>`;
   h.innerHTML = `<div><b>${esc(name)}</b>${cost ? ` ${coin(cost)}${t === 'belt' || t === 'path' || t === 'plant' ? ' per tile' : ''}` : ''}<p>${esc(desc)}</p></div><div class="hint-btns">${extra}<button data-hint="cancel">Done (Esc)</button></div>`;
+}
+// ---------- the walkthrough: coach card, pointer arrow, and revealing the interface bit by bit ----------
+const REVEAL_PARTS = { zoom: ['#zoom'], map: ['#minimap'], date: ['#datebox'], chips: ['#chip-forest', '#chip-power', '#chip-staff'], letters: ['#chip-letters'] };
+const ALL_TOOLS = ['select', 'camp', 'factory', 'belt', 'power', 'chop', 'plant', 'path', 'bulldoze', 'survey', 'mill'];
+function revealedSet(step) {
+  if (!step) return null; // everything
+  const set = new Set();
+  for (const g of G.goals) { if (!g.tut) continue; for (const r of g.reveal || []) set.add(r); if (g === step) break; }
+  return set;
+}
+function applyReveal(step) {
+  const set = revealedSet(step);
+  const show = (sel, on) => { for (const el of document.querySelectorAll(sel)) el.classList.toggle('tut-hide', !on); };
+  for (const [k, sels] of Object.entries(REVEAL_PARTS)) for (const sel of sels) show(sel, !set || set.has(k));
+  for (const t of ALL_TOOLS) show(`.tbtn[data-tool="${t}"]`, !set || set.has(t));
+  show('#toolbar', !set || ALL_TOOLS.some(t => set.has(t)));
+  show('#goals', !set);
+  show('#chip-research', !set || set.has('mill'));
+  document.body.classList.toggle('in-tutorial', !!set);
+  const mapOn = (!set || set.has('map')) && !$('#minimap').classList.contains('collapsed');
+  document.body.classList.toggle('has-map', mapOn);
+}
+function toolShown(t) { const el = document.querySelector(`.tbtn[data-tool="${t}"]`); return !!el && !el.closest('.tut-hide'); }
+let coachKey = '';
+function renderCoach(step) {
+  const el = $('#coach');
+  if (!step) { el.hidden = true; coachKey = ''; return; }
+  const tut = G.goals.filter(g => g.tut), n = tut.indexOf(step) + 1;
+  const key = step.id + confirming('skip');
+  if (key === coachKey) return;
+  const isNew = !coachKey.startsWith(step.id);
+  coachKey = key;
+  el.hidden = false;
+  el.innerHTML = `<div class="coach-top"><span>Step ${n} of ${tut.length}</span><div class="coach-bar"><i style="width:${((n - 1) / tut.length * 100).toFixed(0)}%"></i></div></div>
+    <h3>${esc(step.text)}</h3><p>${esc(step.hint)}</p>
+    <div class="coach-btns"><button class="coach-skip" data-coach="skip">${confirming('skip') ? 'Click again to skip the tutorial' : 'Skip tutorial'}</button>${step.info ? `<button class="go" data-coach="next">${esc(step.button || 'Next')}</button>` : step.reward ? `<span class="coach-reward">Reward ${coin(step.reward)}</span>` : ''}</div>`;
+  if (isNew) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+}
+function onStepDone() { coachKey = ''; updateHud(); }
+// which element the bouncing arrow should point at right now, if any
+function pointerTarget(step) {
+  if (step.id === 'fell' && G.speed > 1) return null; // already found fast-forward
+  const vis = (el) => (el && el.getClientRects().length && !el.closest('.tut-hide') ? el : null);
+  if (step.tab && UI.panelOpen) return UI.tab === step.tab ? vis(document.querySelector(step.inner)) : vis(document.querySelector(`#panel-tabs [data-tab="${step.tab}"]`));
+  if (step.cards) {
+    const card = step.cards.find(c => !G.buildings.some(b => b.type === c));
+    if (!card || UI.tool === card) return null; // placing it: the marker on the map takes over
+    if (UI.flyout) { const el = vis(document.querySelector(`.bcard[data-build="${card}"]`)); if (el) return el; }
+  }
+  if (step.target && step.target.startsWith('.tbtn')) { const t = step.target.match(/data-tool=(\w+)/)[1]; if (UI.tool === t) return null; }
+  return step.target ? vis(document.querySelector(step.target)) : null;
+}
+function updatePointer() {
+  // with the ledger open the coach sits at the bottom, just right of the toolbar
+  const coach = $('#coach');
+  if (document.body.classList.contains('in-tutorial') && UI.panelOpen && window.innerWidth > 700) {
+    const tb = $('#toolbar').getBoundingClientRect();
+    const right = document.body.classList.contains('has-map') ? 300 : 60;
+    coach.style.left = Math.round(tb.right + 12) + 'px';
+    coach.style.transform = 'none';
+    coach.style.width = Math.max(280, Math.min(460, window.innerWidth - tb.right - 24 - right)) + 'px';
+  } else if (coach.style.left) { coach.style.left = ''; coach.style.transform = ''; coach.style.width = ''; }
+  const p = $('#pointer');
+  const step = G && playing ? currentStep() : null;
+  const el = step && !step.info ? pointerTarget(step) : null;
+  if (!el) { p.hidden = true; return; }
+  const r = el.getBoundingClientRect();
+  const below = r.top < 70 || !!el.closest('#panel'); // inside the ledger, point up from below so card text stays readable
+  p.hidden = false;
+  p.classList.toggle('up', below);
+  p.style.left = Math.round(r.left + r.width / 2 - 13) + 'px';
+  p.style.top = Math.round(below ? r.bottom + 4 : r.top - 38) + 'px';
 }
 // point at whatever the current tutorial step needs clicking
 function applyHighlights(step) {
@@ -233,24 +312,19 @@ function updateHud() {
   $('#chip-letters').classList.toggle('pulse', unread > 0);
   const ra = G.research.active;
   $('#chip-research').hidden = !ra;
-  if (ra) { const r = RESEARCH.find(r => r.id === ra.id); $('#chip-research span').textContent = `${r.name} ${Math.floor(ra.prog * 100)}%`; }
+  if (ra) { const r = RESEARCH.find(r => r.id === ra.id); $('#chip-research span').textContent = `${Math.floor(ra.prog * 100)}%`; $('#chip-research').title = `Researching ${r.name}`; }
   // goals
   const step = currentStep();
-  let html;
-  if (step) {
-    const tut = G.goals.filter(g => g.tut), n = tut.indexOf(step) + 1;
-    $('#goals-title').textContent = 'Tutorial';
-    $('#goal-count').textContent = `step ${n} of ${tut.length}`;
-    html = `<li class="step"><span class="box"></span><b>${esc(step.text)}</b>${step.reward ? ` <em>${coin(step.reward)}</em>` : ''}</li>` +
-      `<li class="hint">${esc(step.hint)}</li><li class="skip"><button data-skip>${confirming('skip') ? 'Click again to skip the tutorial' : 'Skip tutorial'}</button></li>`;
-  } else {
-    const goals = G.goals.filter(g => !g.done && (!g.tut || !G.tutorialOff)).filter(g => !g.tut).slice(0, 3);
+  applyReveal(step);
+  renderCoach(step);
+  if (!step) {
+    const goals = G.goals.filter(g => !g.done && !g.tut).slice(0, 3);
     const rest = G.goals.filter(g => !g.tut);
     $('#goals-title').textContent = 'Goals';
     $('#goal-count').textContent = `${rest.filter(g => g.done).length}/${rest.length} done`;
-    html = goals.length ? goals.map(g => `<li><span class="box"></span>${esc(g.text)} <em>${coin(g.reward)}</em></li>`).join('') : '<li>All goals complete. The valley is yours.</li>';
+    const html = goals.length ? goals.map(g => `<li><span class="box"></span>${esc(g.text)} <em>${coin(g.reward)}</em></li>`).join('') : '<li>All goals complete. The valley is yours.</li>';
+    if (html !== lastHud) { $('#goal-list').innerHTML = html; lastHud = html; }
   }
-  if (html !== lastHud) { $('#goal-list').innerHTML = html; lastHud = html; }
   applyHighlights(step);
 }
 
@@ -354,10 +428,11 @@ function inspectBelt(b) {
 // ---------- the mill ledger panel ----------
 function openPanel(tab) {
   UI.tab = tab || UI.tab; UI.panelOpen = true;
+  document.body.classList.add('panel-open');
   $('#panel').hidden = false;
   renderPanel();
 }
-function closePanel() { UI.panelOpen = false; $('#panel').hidden = true; }
+function closePanel() { UI.panelOpen = false; $('#panel').hidden = true; document.body.classList.remove('panel-open'); }
 function renderPanel() {
   if (!UI.panelOpen) return;
   const tabs = [['overview', 'Overview'], ['staff', 'Staff'], ['hire', 'Hire'], ['research', 'Research'], ['trade', 'Trade'], ['letters', 'Letters'], ['policies', 'Policies'], ['game', 'Save']];
@@ -434,7 +509,7 @@ function panelHire() {
   const days = 4 - (dayOf() - G.candDay);
   return `<p class="note">Wages are paid every evening. New applicants arrive in ${days} day${days === 1 ? '' : 's'}. <button data-act="refreshcand">Advertise now (${fmt(60)})</button></p><div class="hire">` + G.candidates.map(c => {
     const r = ROLES[c.role];
-    return `<div class="hcard"><div class="hrole" style="background:${r.color}">${r.name}</div>
+    return `<div class="hcard" data-role="${c.role}"><div class="hrole" style="background:${r.color}">${r.name}</div>
       <img class="portrait lg" src="${makePortrait(c.ap).toDataURL()}" alt="">
       <div class="hname">${esc(c.name)}</div>
       <dl><dt>Level</dt><dd>${c.level}/5</dd><dt>${r.stat}</dt><dd>${c.skill.toFixed(2)}</dd><dt>Personality</dt><dd title="${esc(PERSONALITIES[c.pers].desc)}">${PERSONALITIES[c.pers].name}</dd><dt>Pay</dt><dd>${coin(c.pay)}</dd></dl>
@@ -777,11 +852,10 @@ function initMinimap() {
   cv.addEventListener('pointerup', () => { down = false; });
   $('#map-toggle').addEventListener('click', () => {
     const c = $('#minimap').classList.toggle('collapsed');
-    document.body.classList.toggle('has-map', !c);
+    applyReveal(currentStep());
     $('#map-toggle').textContent = c ? 'Map' : '–';
     $('#map-toggle').setAttribute('aria-label', c ? 'Show map' : 'Hide map');
   });
-  document.body.classList.add('has-map');
 }
 function drawMinimap(full) {
   const c = MINI.ctx;

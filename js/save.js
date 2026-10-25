@@ -151,7 +151,10 @@ function restoreGame(d) {
     const doneGoals = arr(d.goals);
     for (const goal of G.goals) goal.done = doneGoals.includes(goal.id);
     const tu = obj(d.tutor);
-    G.tutor = { panned: !!tu.panned, zoomed: !!tu.zoomed, selected: !!tu.selected, marked: Math.max(0, int(tu.marked)) };
+    const yd = obj(tu.yard), ack = {};
+    for (const id of Object.keys(obj(tu.ack))) if (G.goals.some(g => g.id === id)) ack[id] = true;
+    G.tutor = { panned: !!tu.panned, zoomed: !!tu.zoomed, selected: !!tu.selected, marked: Math.max(0, int(tu.marked)), ack, lettersSent: !!tu.lettersSent,
+      yard: inMap(int(yd.x, -1), int(yd.y, -1)) && inMap(int(yd.x) + 8, int(yd.y) + 2) ? { x: int(yd.x), y: int(yd.y) } : null };
     // saves from before the tutorial existed: skip it rather than replay it mid-game
     G.tutorialOff = d.tutorialOff === undefined ? doneGoals.length > 0 : !!d.tutorialOff;
     G.initialForest = Math.max(1, num(d.initialForest, forestScore()));

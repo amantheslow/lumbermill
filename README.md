@@ -4,7 +4,7 @@ A playable browser demo of a forest factory-builder, made as a tribute to *Lumbe
 
 Open `index.html` through any static web server (for example `python3 -m http.server`) and click **Start the mill**. The page has no build step and no dependencies.
 
-You start small: the Mill Office, one tent, a campfire, two lumberjacks and 2,000 coins. A 14-step tutorial in the top-left panel walks you from felling your first trees to a powered sawmill selling planks, hiring, research and trade. It highlights the button or menu entry to press at each step and pays a small reward per step. You can skip it, and bring it back from the **?** button.
+You start small and calm: the Mill Office, one tent, a campfire, two lumberjacks, 2,000 coins, and the clock stopped. A guided walkthrough shows one instruction at a time on a coach card, with a bouncing arrow pointing at the exact button, worker, trees or map spot to use next. The interface appears piece by piece as you need it: first the map, then zoom, the Fell tool, the clock, the factory, power and conveyor tools, camp buildings, and finally the Ledger. A cleared yard by camp, with see-through outlines, shows where your first Log Drop, Sawmill, Steam Engine, Trade Depot and conveyors go. Letters, random events and machine wear stay off until the walkthrough ends. You can skip it from the card, or bring it back from the **?** button.
 
 ## What's in the demo
 

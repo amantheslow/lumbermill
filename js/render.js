@@ -147,7 +147,8 @@ function rebuildGround() {
 
 // ---------- camera ----------
 function worldToScreen(wx, wy) { return [wx + R.ox, wy + R.oy]; }
-function screenToWorld(cssX, cssY) { return [cssX / R.cam.s - R.ox, cssY / R.cam.s - R.oy]; }
+// from the camera itself rather than the last drawn frame, so a click right after the view moves lands where you aimed
+function screenToWorld(cssX, cssY) { return [cssX / R.cam.s - Math.round(R.cv.width / 2 - R.cam.x), cssY / R.cam.s - Math.round(R.cv.height / 2 - R.cam.y)]; }
 function tileAtCss(cssX, cssY) { const [wx, wy] = screenToWorld(cssX, cssY); const t = screenToTile(wx, wy); return { x: Math.floor(t.x), y: Math.floor(t.y), fx: t.x, fy: t.y }; }
 // zoom levels: on high-density screens half steps stay crisp (1.5 art px = 3 device px), elsewhere whole steps only
 function zoomLevels() { return R.dpr >= 2 ? [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6] : [1, 2, 3, 4, 5, 6]; }
@@ -245,6 +246,7 @@ function render(now) {
     }
   }
   drawWires(ctx);
+  drawTutorial(ctx, time);
   // particles
   for (const f of G.fx) {
     const sx = f.x + ox, sy = f.y + oy;
@@ -431,6 +433,85 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
   }
   if (Math.random() < 0.02) R.fireflies.shift();
   ctx.globalCompositeOperation = 'source-over';
+}
+
+// ---------- tutorial markers on the map ----------
+function tutArrow(ctx, x, y, time) { // a bouncing gold arrow whose tip sits at (x, y)
+  const b = Math.round(Math.abs(Math.sin(time * 4)) * 4);
+  x = Math.round(x); y = Math.round(y) - b;
+  ctx.fillStyle = '#2a1a19';
+  ctx.fillRect(x - 3, y - 14, 7, 7); ctx.fillRect(x - 6, y - 8, 13, 2);
+  for (let i = 0; i < 6; i++) ctx.fillRect(x - 6 + i, y - 7 + i, 13 - i * 2, 1);
+  ctx.fillStyle = '#f5c518';
+  ctx.fillRect(x - 2, y - 13, 5, 6);
+  for (let i = 0; i < 5; i++) ctx.fillRect(x - 5 + i, y - 7 + i, 11 - i * 2, 1);
+}
+function tutRingTrees() { // a tight cluster of grown trees by camp, so one drag can mark them all
+  const c = bCenter(G.hq), y = G.tutor.yard;
+  const inYard = (t) => y && t.x >= y.x - 1 && t.x <= y.x + 9 && t.y >= y.y - 2 && t.y <= y.y + 3;
+  const ok = (t) => !t.dead && t.sp !== 'ancient' && !inYard(t) && G.reveal[idx(t.x, t.y)] && (treeStage(t) === 'mature' || treeStage(t) === 'old');
+  const live = () => (R.ring || []).map(([x, y]) => G.tree[idx(x, y)]).filter(t => t && ok(t) && !t.mark);
+  if (live().length < Math.min(5, 5 - (G.tutor.marked || 0) + 1)) {
+    const grown = G.trees.filter(ok);
+    let best = null, bs = 1e9; // the anchor with the most grown trees within 2 tiles, close to camp
+    for (const t of grown) {
+      const near = grown.filter(o => Math.abs(o.x - t.x) <= 2 && Math.abs(o.y - t.y) <= 2).length;
+      const sc = dist(t.x, t.y, c.x, c.y) - near * 2.5;
+      if (sc < bs) { bs = sc; best = t; }
+    }
+    R.ring = best ? grown.filter(o => Math.abs(o.x - best.x) <= 2 && Math.abs(o.y - best.y) <= 2).slice(0, 8).map(t => [t.x, t.y]) : [];
+  }
+  return live();
+}
+function drawTutorial(ctx, time) {
+  const step = playing ? currentStep() : null;
+  if (!step || !step.marker) return;
+  const pulse = 0.55 + 0.45 * Math.sin(time * 5);
+  const yd = G.tutor.yard;
+  const ghost = (type, dx, dy) => { // translucent building where we suggest putting it
+    const d = BDEF[type], x = yd.x + dx, y = yd.y + dy;
+    ctx.globalAlpha = 0.35 + pulse * 0.3;
+    for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) { const [sx, sy] = tileTop(x + i, y + j); ctx.drawImage(R.hl.ok, sx - 16, sy); }
+    ctx.globalAlpha = 0.45;
+    const [sx, sy] = tileTop(x, y);
+    spr(ctx, type === 'intake' ? ART.b.intake[0] : ART.b[type], sx, sy);
+    ctx.globalAlpha = 1;
+    const [ax, ay] = tileTop(x + d.w / 2, y + d.h / 2);
+    tutArrow(ctx, ax, ay - (type === 'intake' ? 14 : 36), time);
+  };
+  const ghostBelts = (tiles) => {
+    let first = null;
+    for (const [dx, dy] of tiles) {
+      const x = yd.x + dx, y = yd.y + dy;
+      if (G.belt[idx(x, y)]) continue;
+      const [sx, sy] = tileTop(x, y);
+      ctx.globalAlpha = 0.35 + pulse * 0.35; spr(ctx, ART.belt[0][Math.floor(time * 6) % 4], sx, sy); ctx.globalAlpha = 1;
+      if (!first) first = [x, y];
+    }
+    if (first) { const [ax, ay] = tileTop(first[0] + 0.5, first[1] + 0.5); tutArrow(ctx, ax, ay - 4, time); }
+    return !!first;
+  };
+  const m = step.marker;
+  if (m === 'worker') {
+    for (const w of G.workers) if (!w.hidden) { const [sx, sy] = tileTop(w.x, w.y); tutArrow(ctx, sx, sy - 20, time); }
+  } else if (m === 'trees') {
+    if (UI.tool === 'chop' || (G.tutor.marked || 0) > 0) {
+      const trees = tutRingTrees();
+      ctx.globalAlpha = pulse;
+      for (const t of trees) { const [sx, sy] = tileTop(t.x, t.y); ctx.drawImage(R.hl.hover, sx - 16, sy); ctx.drawImage(R.hl.hover, sx - 16, sy); }
+      ctx.globalAlpha = 1;
+      if (trees[0]) { const [sx, sy] = tileTop(trees[0].x + 0.5, trees[0].y + 0.5); tutArrow(ctx, sx, sy - 34, time); }
+    }
+  } else if (yd && m === 'yard') {
+    ctx.globalAlpha = 0.5 + pulse * 0.4;
+    for (let y = yd.y - 1; y <= yd.y + 2; y++) for (let x = yd.x; x <= yd.x + 8; x++) { const [sx, sy] = tileTop(x, y); ctx.drawImage(R.hl.range, sx - 16, sy); ctx.drawImage(R.hl.range, sx - 16, sy); }
+    ctx.globalAlpha = 1;
+    const [ax, ay] = tileTop(yd.x + 4.5, yd.y + 0.5); tutArrow(ctx, ax, ay - 6, time);
+  } else if (yd && BDEF[m]) {
+    const built = G.buildings.some(b => b.type === m);
+    if (!built) ghost(m, ...YARD[m]);
+    else if (m === 'depot') ghostBelts(YARD.belt2);
+  } else if (yd && m === 'belt1') ghostBelts(YARD.belt1);
 }
 
 // falling petals in spring, leaves in autumn, snow in winter; drawn in screen space
