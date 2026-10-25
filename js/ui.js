@@ -112,6 +112,7 @@ function buildHud() {
   }
   window.addEventListener('pointerup', () => setTimeout(() => UI.pointerInPanel = false, 0));
   $('#panel-close').addEventListener('click', closePanel);
+  initMinimap();
   $('#load-file').addEventListener('change', e => loadFromFile(e.target.files[0]));
   $('#panel-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { UI.tab = b.dataset.tab; renderPanel(); } });
 }
@@ -658,7 +659,72 @@ function applyTool() {
   }
 }
 
+// ---------- minimap: the island drawn as a small diamond, 1.5 px per tile ----------
+const MINI = { w: 216, h: 110, s: 1.5, img: null, tick: 0 };
+const MINI_TREE = {
+  spruce: ['#2f7a3c', '#2f7a3c', '#2f7a3c', '#e6edf2'], pine: ['#2a6a48', '#2a6a48', '#2a6a48', '#e6edf2'],
+  maple: ['#86c95a', '#468c3b', '#d2671f', '#6e5442'], birch: ['#b0dc6a', '#619b44', '#e3be45', '#8a7a6a'], ancient: ['#58ad52', '#58ad52', '#58ad52', '#58ad52'],
+};
+const MINI_GRASS = ['#4f8444', '#4a7b3e', '#46703f', '#dfe7ee'];
+function initMinimap() {
+  const cv = $('#mini');
+  MINI.ctx = cv.getContext('2d');
+  const jump = (e) => {
+    const r = cv.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / r.width * MINI.w, my = (e.clientY - r.top) / r.height * MINI.h;
+    R.cam.x = (mx - MINI.w / 2) / MINI.s * HTW; R.cam.y = my / (MINI.s / 2) * HTH; clampCam();
+    drawMinimap(false);
+  };
+  let down = false;
+  cv.addEventListener('pointerdown', e => { down = true; cv.setPointerCapture(e.pointerId); jump(e); });
+  cv.addEventListener('pointermove', e => { if (down) jump(e); });
+  cv.addEventListener('pointerup', () => { down = false; });
+  $('#map-toggle').addEventListener('click', () => {
+    const c = $('#minimap').classList.toggle('collapsed');
+    document.body.classList.toggle('has-map', !c);
+    $('#map-toggle').textContent = c ? 'Map' : '–';
+    $('#map-toggle').setAttribute('aria-label', c ? 'Show map' : 'Hide map');
+  });
+  document.body.classList.add('has-map');
+}
+function drawMinimap(full) {
+  const c = MINI.ctx;
+  if (!c || !G) return;
+  if (full || !MINI.img) {
+    const id = c.createImageData(MINI.w, MINI.h), u = new Uint32Array(id.data.buffer);
+    const se = seasonOf();
+    const grass = C(MINI_GRASS[se]), path = P.dirt, water = C('#1d6d93'), fogL = C('#1f2c22'), fogW = C('#0f1a20'), dead = C('#776657'), belt = C('#2d2a2d'), bld = C('#ead9b4'), hq = C('#f3c11b');
+    for (let my = 0; my < MINI.h; my++) for (let mx = 0; mx < MINI.w; mx++) {
+      const a = (mx + 0.5 - MINI.w / 2) / MINI.s, b = (my + 0.5) / (MINI.s / 2); // a = x - y, b = x + y
+      const x = Math.floor((a + b) / 2), y = Math.floor((b - a) / 2);
+      if (!inMap(x, y)) continue;
+      const k = idx(x, y), land = G.tiles[k] !== 0;
+      let col;
+      if (!G.reveal[k]) col = land ? fogL : fogW;
+      else if (!land) col = water;
+      else if (G.occ[k]) col = G.occ[k] === G.hq.id ? hq : bld;
+      else if (G.belt[k]) col = belt;
+      else if (G.tree[k] && G.tree[k].age > 3) col = G.tree[k].dead ? dead : C(MINI_TREE[G.tree[k].sp][se]);
+      else col = G.tiles[k] === 2 ? path : grass;
+      u[my * MINI.w + mx] = col;
+    }
+    MINI.img = id;
+  }
+  c.putImageData(MINI.img, 0, 0);
+  const pt = (x, y) => [(x - y) * MINI.s + MINI.w / 2, (x + y) * MINI.s / 2];
+  for (const w of G.workers) { if (w.hidden) continue; const [x, y] = pt(w.x, w.y); c.fillStyle = '#ffffff'; c.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); }
+  for (const s of G.secrets) if (s.found && !s.done && s.kind !== 'ancient') { const [x, y] = pt(s.x + 0.5, s.y + 0.5); c.fillStyle = (MINI.tick & 2) ? '#f3c11b' : '#fff6c0'; c.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); }
+  // the part of the island in view
+  // world pixels map to the minimap as x / HTW * s across and y / HTH * s / 2 down
+  const vw = R.cv.width / HTW * MINI.s, vh = R.cv.height / HTH * MINI.s / 2;
+  const cx = R.cam.x / HTW * MINI.s + MINI.w / 2, cy = R.cam.y / HTH * MINI.s / 2;
+  c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 1;
+  c.strokeRect(Math.round(cx - vw / 2) + 0.5, Math.round(cy - vh / 2) + 0.5, Math.round(vw), Math.round(vh));
+}
+
 function uiTick() {
   updateHud();
+  const mm = $('#minimap'); // skip drawing while hidden (collapsed, or on a phone)
+  if (!mm.classList.contains('collapsed') && mm.getClientRects().length && getComputedStyle(mm).display !== 'none') drawMinimap(MINI.tick++ % 4 === 0);
   if (!UI.pointerInPanel) { renderInspector(); renderPanel(); }
 }

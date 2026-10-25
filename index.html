@@ -110,6 +110,17 @@ button.go:disabled { background: var(--panel-2); color: var(--ink-dim); cursor: 
 
 /* --- inspector --- */
 #inspector { position: fixed; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: 300px; max-height: calc(100vh - 140px); overflow: auto; }
+body.has-map #inspector { bottom: calc(142px + env(safe-area-inset-bottom, 0px)); max-height: calc(100vh - 272px); }
+#minimap { position: fixed; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 4px; line-height: 0; }
+#mini { width: 216px; height: 110px; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+#map-toggle { position: absolute; top: 2px; right: 2px; background: var(--panel-3); border: 0; color: var(--ink-dim); font-size: 13px; line-height: 1; padding: 2px 6px; }
+#minimap.collapsed #mini { display: none; }
+#minimap.collapsed { padding: 0; }
+#minimap.collapsed #map-toggle { position: static; padding: 6px 10px; }
+@media (max-width: 1020px) and (min-width: 701px) {
+  #datebox { left: auto; transform: none; right: calc(10px + env(safe-area-inset-right, 0px)); top: calc(52px + env(safe-area-inset-top, 0px)); }
+  #toasts { top: calc(96px + env(safe-area-inset-top, 0px)); }
+}
 #inspector h3, #panel h2 { margin: 0; font-size: 17px; font-weight: 600; padding: 6px 10px; background: var(--panel-3); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .x { background: none; border: 0; font-size: 20px; line-height: 1; color: var(--ink-dim); padding: 0 4px; }
 .x:hover { color: var(--ink); }
@@ -232,6 +243,8 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
 
 @media (max-width: 700px) { #hint { flex-wrap: wrap; } }
 @media (max-width: 700px) {
+  #minimap { display: none; }
+  body.has-map #inspector { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); max-height: 46vh; }
   body { font-size: 14px; }
   #moneybox { min-width: 0; padding: 3px 8px 3px 5px; gap: 6px; } #money { font-size: 16px; } #moneybox img { width: 18px; height: 18px; }
   #chips { flex-wrap: nowrap; max-width: none; gap: 4px; }
@@ -275,6 +288,7 @@ svg.face circle { fill: var(--gold); } svg.face.good circle { fill: var(--good);
 <div id="hint" class="pnl" hidden></div>
 <nav id="toolbar" aria-label="Tools"></nav>
 <aside id="inspector" class="pnl" hidden></aside>
+<div id="minimap" class="pnl"><canvas id="mini" width="216" height="110" aria-label="Map of the island. Click to move the view."></canvas><button id="map-toggle" aria-label="Hide map">–</button></div>
 <section id="panel" class="pnl" hidden aria-label="Mill ledger">
   <h2>Mill Ledger <button class="x" id="panel-close" aria-label="Close">×</button></h2>
   <div class="tabs" id="panel-tabs"></div>

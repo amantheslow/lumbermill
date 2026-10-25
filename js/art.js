@@ -499,23 +499,27 @@ function spriteFlowers() {
   }
   return finishBuilding(o);
 }
-function spriteBelt(dir, frame) {
+// a conveyor tile; when inDir differs from dir it is a corner: items enter heading inDir and leave heading dir
+function spriteBelt(dir, frame, inDir = dir) {
   const b = new PixBuf(32, 20);
   const surf = new PixBuf(32, 16);
+  const axes = (d, t) => d === 0 ? [t.x, t.y] : d === 1 ? [t.y, 1 - t.x] : d === 2 ? [1 - t.x, 1 - t.y] : [1 - t.y, t.x]; // [along, across]
   for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) {
     const t = screenToTile(x + 0.5 - 16, y + 0.5);
     if (t.x < 0 || t.y < 0 || t.x > 1 || t.y > 1) continue;
-    let a, c; // a: along travel, c: across
-    if (dir === 0) { a = t.x; c = t.y; } else if (dir === 1) { a = t.y; c = 1 - t.x; } else if (dir === 2) { a = 1 - t.x; c = 1 - t.y; } else { a = 1 - t.y; c = t.x; }
-    const off = Math.abs(c - 0.5);
-    if (off > 0.4) continue;
-    let col;
-    if (off > 0.31) col = off > 0.37 ? P.woodD : P.woodL;
-    else {
+    // the incoming half runs from the entry edge to just past the centre, the outgoing half from just before it to the exit
+    let col = 0, rail = 0;
+    const strips = inDir === dir ? [[dir, 0, 1]] : [[dir, 0.1, 1], [inDir, 0, 0.9]];
+    for (const [d, lo, hi] of strips) {
+      const [a, c] = axes(d, t);
+      const off = Math.abs(c - 0.5);
+      if (off > 0.4 || a < lo || a > hi) continue;
+      if (off > 0.31) { if (!rail) rail = off > 0.37 ? P.woodD : P.woodL; continue; }
       const ph = ((a * 2 - off * 1.6 - frame / 4) % 1 + 1) % 1;
       col = ph < 0.16 ? P.chev : ((x + y) % 7 === 0 ? P.beltL : P.belt);
+      break;
     }
-    surf.set(x, y, col);
+    if (col || rail) surf.set(x, y, col || rail);
   }
   for (let x = 0; x < 32; x++) {
     let bottom = -1;
@@ -645,6 +649,8 @@ function bakeArt() {
   ART.b = buildings();
   SNOW = true; ART.bWinter = buildings(); SNOW = false;
   ART.belt = [0, 1, 2, 3].map(d => [0, 1, 2, 3].map(f => spriteBelt(d, f)));
+  // corners: ART.beltCorner[inDir][dir][frame]
+  ART.beltCorner = [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(d => (d === i || d === (i + 2) % 4) ? null : [0, 1, 2, 3].map(f => spriteBelt(d, f, i))));
   ART.items = {}; for (const t of ['log', 'plank', 'crate', 'chair', 'table']) ART.items[t] = spriteItem(t);
   ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint']) ART.secret[k] = spriteSecret(k);
   ART.icons = buildIcons();

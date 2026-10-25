@@ -195,15 +195,15 @@ function render(now) {
     if (!onScreen(sx, sy)) continue;
     if (G.plantMark[k]) ctx.drawImage(R.hl.plant, sx - 16, sy);
     const bl = G.belt[k];
-    if (bl) spr(ctx, ART.belt[bl.dir][fr], sx, sy);
+    if (bl) { const i = beltInDir(bl); spr(ctx, i === bl.dir ? ART.belt[bl.dir][fr] : ART.beltCorner[i][bl.dir][fr], sx, sy); }
     const t = G.tree[k];
     if (t) list.push({ d: x + y + 1, k: 't', o: t, sx: sx, sy: sy + HTH, fog: !G.reveal[k] });
     if (G.stump[k] && G.reveal[k] && !t) list.push({ d: x + y + 1, k: 's', sx, sy: sy + HTH });
   }
   for (const bl of G.belts) {
     if (!bl.item) continue;
-    const p = bl.p - 0.5;
-    const cx = bl.x + 0.5 + DX[bl.dir] * p, cy = bl.y + 0.5 + DY[bl.dir] * p;
+    const p = bl.p - 0.5, d = p < 0 ? beltInDir(bl) : bl.dir; // on a corner, the first half of the trip follows the incoming side
+    const cx = bl.x + 0.5 + DX[d] * p, cy = bl.y + 0.5 + DY[d] * p;
     const [sx, sy] = tileTop(cx, cy);
     if (onScreen(sx, sy)) spr(ctx, ART.items[bl.item], sx, sy - 3);
   }

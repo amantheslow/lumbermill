@@ -423,6 +423,18 @@ function removeBelt(x, y) {
   if (!b) return;
   G.belt[k] = null; G.belts.splice(G.belts.indexOf(b), 1);
 }
+// the direction items arrive from: straight on, or from a belt feeding in from the side
+function beltInDir(b) {
+  const bx = b.x - DX[b.dir], by = b.y - DY[b.dir];
+  const behind = inMap(bx, by) && G.belt[idx(bx, by)];
+  if (behind && behind.dir === b.dir) return b.dir;
+  for (const d of [(b.dir + 1) % 4, (b.dir + 3) % 4]) {
+    const sx = b.x - DX[d], sy = b.y - DY[d];
+    const s = inMap(sx, sy) && G.belt[idx(sx, sy)];
+    if (s && s.dir === d) return d;
+  }
+  return b.dir;
+}
 function beltSpeed() { return has('rollers') ? 1.9 : 1.2; }
 function updateBelts(dt) {
   const sp = beltSpeed() * dt;
