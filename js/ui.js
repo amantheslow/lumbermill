@@ -104,6 +104,7 @@ function buildHud() {
     const b = e.target.closest('[data-help]'); if (!b) return;
     if (b.dataset.help === 'close') $('#help').hidden = true;
     if (b.dataset.help === 'tutorial') { G.tutorialOff = false; $('#help').hidden = true; coachKey = ''; lastHud = ''; updateHud(); }
+    if (b.dataset.help === 'fresh') { if (askConfirm('fresh')) startFresh(); else renderHelp(); }
   });
   $('#coach').addEventListener('click', e => {
     const b = e.target.closest('[data-coach]'); if (!b) return;
@@ -276,7 +277,10 @@ function renderHelp() {
       <dt>Ledger</dt><dd>M opens staff, hiring, research, trade, letters and saving.</dd>
       <dt>Phones</dt><dd>One finger uses the current tool, two fingers move and zoom.</dd>
     </dl>
-    <div class="row-btns">${G.tutorialOff || !currentStep() ? '<button data-help="tutorial">Show the tutorial</button>' : ''}<button class="go" data-help="close">Close</button></div>`;
+    <div class="row-btns">${freshButton('data-help="fresh"')}${G.tutorialOff || !currentStep() ? '<button data-help="tutorial">Show the tutorial</button>' : ''}<button class="go" data-help="close">Close</button></div>`;
+}
+function freshButton(attr) {
+  return `<button class="danger" ${attr}>${confirming('fresh') ? 'Click again: this mill will be lost' : 'Start a new mill'}</button>`;
 }
 function openFlyout(cat) {
   UI.flyout = cat;
@@ -617,6 +621,9 @@ function panelGame() {
     <p class="savestate">${file}</p>
     <div class="row-btns"><button class="go" data-act="save">Save to file</button><button data-act="load">Load from file</button></div>
     <p class="note">Ctrl+S (or Cmd+S) saves to a file at any time. Loading replaces the mill you are playing, so save it first if you want to keep it.</p>
+    <h4>Start over</h4>
+    <p>Begin a new mill on a fresh island, walkthrough and all. This replaces your autosave, so save this mill to a file first if you want to keep it.</p>
+    <div class="row-btns">${freshButton('data-act="fresh"')}</div>
   </div>`;
 }
 
@@ -654,6 +661,7 @@ function onAction(e) {
     case 'radius': G.policy.chopRadius = +b.value; break;
     case 'species': G.plantSpecies = v; break;
     case 'save': saveToFile(); return;
+    case 'fresh': if (askConfirm('fresh')) { startFresh(); return; } break;
     case 'load': openLoadDialog(); return;
   }
   renderInspector(); renderPanel(); updateHud();
