@@ -83,11 +83,29 @@ function buildHud() {
   $('#chip-research img').src = I.research;
   const tb = $('#toolbar');
   const tools = [
-    ['select', 'Select', I.select, 'V'], ['camp', 'Camp', I.camp, '1'], ['factory', 'Factory', I.factory, '2'], ['belt', 'Conveyor', I.belt, 'C'],
-    ['power', 'Power', I.power, '3'], ['chop', 'Fell trees', I.chop, 'F'], ['plant', 'Plant', I.plant, 'P'], ['path', 'Path', I.path, 'T'],
-    ['bulldoze', 'Bulldoze', I.bulldoze, 'B'], ['survey', 'Survey', I.survey, 'X'], ['mill', 'Mill ledger', I.mill, 'M'],
+    ['select', 'Select', 'Select and inspect', I.select, 'V'], ['camp', 'Camp', 'Camp buildings', I.camp, '1'], ['factory', 'Factory', 'Factory buildings', I.factory, '2'],
+    ['belt', 'Conveyor', 'Conveyor', I.belt, 'C'], ['power', 'Power', 'Power buildings', I.power, '3'], ['chop', 'Fell', 'Mark trees for felling', I.chop, 'F'],
+    ['plant', 'Plant', 'Mark ground for planting', I.plant, 'P'], ['path', 'Path', 'Dirt path', I.path, 'T'], ['bulldoze', 'Remove', 'Remove things', I.bulldoze, 'B'],
+    ['survey', 'Survey', 'Survey the forest', I.survey, 'X'], ['mill', 'Ledger', 'Mill Ledger', I.mill, 'M'],
   ];
-  tb.innerHTML = tools.map(([id, name, ico, key]) => `<button class="tbtn" data-tool="${id}" title="${name} (${key})" aria-label="${name}"><img src="${ico}" alt=""><span class="key">${key}</span></button>`).join('');
+  tb.innerHTML = tools.map(([id, label, name, ico, key]) => `<button class="tbtn" data-tool="${id}" title="${name} (${key})" aria-label="${name}"><img src="${ico}" alt=""><span class="lbl">${label}</span><span class="key">${key}</span></button>`).join('');
+  // zoom, home and help
+  $('#zoom').addEventListener('click', e => {
+    const b = e.target.closest('[data-zoom]'); if (!b) return;
+    if (b.dataset.zoom === 'home') { const c = bCenter(G.hq); centerOn(c.x + 1, c.y + 1); }
+    else zoomStep(+b.dataset.zoom);
+  });
+  $('#chip-help').addEventListener('click', () => { $('#help').hidden = !$('#help').hidden; renderHelp(); });
+  $('#help').addEventListener('click', e => {
+    const b = e.target.closest('[data-help]'); if (!b) return;
+    if (b.dataset.help === 'close') $('#help').hidden = true;
+    if (b.dataset.help === 'tutorial') { G.tutorialOff = false; $('#help').hidden = true; $('#goals').classList.remove('collapsed'); lastHud = ''; updateHud(); }
+  });
+  $('#goal-list').addEventListener('click', e => {
+    if (!e.target.closest('[data-skip]')) return;
+    if (askConfirm('skip')) { G.tutorialOff = true; toast('Tutorial skipped. Reopen it any time from the ? button.'); }
+    lastHud = ''; updateHud();
+  });
   tb.addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
   $('#speed').addEventListener('click', e => { const b = e.target.closest('[data-speed]'); if (b) setSpeed(+b.dataset.speed); });
   $('#chip-letters').addEventListener('click', () => openPanel('letters'));
@@ -142,11 +160,41 @@ function updateHint() {
   if (t === 'select') { h.hidden = true; return; }
   h.hidden = false;
   let name, desc, cost, extra = '';
-  if (BDEF[t]) { name = BDEF[t].name; desc = BDEF[t].desc; cost = BDEF[t].cost; }
+  if (BDEF[t]) { name = BDEF[t].name; desc = BDEF[t].desc + ' Click to place it. Hold Shift to place several.'; cost = BDEF[t].cost; }
   else { name = TOOLS[t].name; desc = TOOLS[t].desc; cost = TOOLS[t].cost; }
   if (t === 'belt') extra = `<button data-hint="rotate">Rotate: ${DIR_NAMES[UI.beltDir]} (R)</button>`;
   if (t === 'chop' || t === 'plant') extra = `<button data-hint="unmark" class="${UI.unmark ? 'on' : ''}">${UI.unmark ? 'Unmarking' : 'Marking'} (Shift)</button>`;
   h.innerHTML = `<div><b>${esc(name)}</b>${cost ? ` ${coin(cost)}${t === 'belt' || t === 'path' || t === 'plant' ? ' per tile' : ''}` : ''}<p>${esc(desc)}</p></div><div class="hint-btns">${extra}<button data-hint="cancel">Done (Esc)</button></div>`;
+}
+// point at whatever the current tutorial step needs clicking
+function applyHighlights(step) {
+  const want = new Set();
+  if (step) {
+    if (step.target) for (const el of document.querySelectorAll(step.target)) want.add(el);
+    if (step.cards) for (const c of step.cards) { // skip what is already built (a pole only matters until there is a link)
+      if (c !== 'pole' && G.buildings.some(b => b.type === c)) continue;
+      const el = document.querySelector(`.bcard[data-build="${c}"]`); if (el) want.add(el);
+    }
+    if (step.tab && UI.panelOpen) { const el = document.querySelector(`#panel-tabs [data-tab="${step.tab}"]`); if (el && UI.tab !== step.tab) want.add(el); }
+    if (step.tab && UI.panelOpen && UI.tab === step.tab) want.delete(document.querySelector('.tbtn[data-tool=mill]'));
+  }
+  for (const el of document.querySelectorAll('.tut-glow')) if (!want.has(el)) el.classList.remove('tut-glow');
+  for (const el of want) el.classList.add('tut-glow');
+}
+function renderHelp() {
+  $('#help').innerHTML = `<h2>Controls <button class="x" data-help="close" aria-label="Close">×</button></h2>
+    <dl class="controls">
+      <dt>Move</dt><dd>Drag the map, or use WASD or the arrow keys. Click the minimap to jump. The house button returns to your mill.</dd>
+      <dt>Zoom</dt><dd>Mouse wheel, trackpad pinch, two-finger pinch, + and − buttons, or Q and E.</dd>
+      <dt>Inspect</dt><dd>With Select on (V), click staff, buildings and trees. Hover to see what something is.</dd>
+      <dt>Build</dt><dd>Pick a building from Camp, Factory or Power, then click the ground. Hold Shift to place several.</dd>
+      <dt>Drag tools</dt><dd>Conveyor, Fell, Plant, Path and Remove work by dragging. Conveyors run the way you drag; R rotates one.</dd>
+      <dt>Cancel</dt><dd>Esc or right-click goes back to Select.</dd>
+      <dt>Time</dt><dd>Space pauses. The arrows by the date speed time up.</dd>
+      <dt>Ledger</dt><dd>M opens staff, hiring, research, trade, letters and saving.</dd>
+      <dt>Phones</dt><dd>One finger uses the current tool, two fingers move and zoom.</dd>
+    </dl>
+    <div class="row-btns">${G.tutorialOff || !currentStep() ? '<button data-help="tutorial">Show the tutorial</button>' : ''}<button class="go" data-help="close">Close</button></div>`;
 }
 function openFlyout(cat) {
   UI.flyout = cat;
@@ -158,6 +206,7 @@ function openFlyout(cat) {
     return `<button class="bcard" data-build="${id}" ${locked ? 'disabled' : ''} title="${esc(d.desc)}"><img src="${spriteThumb(id)}" alt=""><span class="nm">${esc(d.name)}</span>${locked ? `<span class="lock">Research ${esc(rname)}</span>` : `<span class="cost">${coin(d.cost)}</span>`}</button>`;
   }).join('') + '</div>';
   f.hidden = false; $('#hint').hidden = true;
+  applyHighlights(currentStep());
   for (const b of document.querySelectorAll('.tbtn')) b.classList.toggle('on', b.dataset.tool === cat);
 }
 function closeFlyout() { const was = UI.flyout; UI.flyout = null; $('#flyout').hidden = true; setToolButtons(); if (was) updateHint(); }
@@ -186,11 +235,23 @@ function updateHud() {
   $('#chip-research').hidden = !ra;
   if (ra) { const r = RESEARCH.find(r => r.id === ra.id); $('#chip-research span').textContent = `${r.name} ${Math.floor(ra.prog * 100)}%`; }
   // goals
-  const goals = G.goals.filter(g => !g.done).slice(0, 3);
-  const done = G.goals.filter(g => g.done).length;
-  $('#goal-count').textContent = `${done}/${G.goals.length} done`;
-  const html = (goals.length ? goals.map(g => `<li><span class="box"></span>${esc(g.text)} <em>${coin(g.reward)}</em></li>`).join('') : '<li>All goals complete. The valley is yours.</li>');
+  const step = currentStep();
+  let html;
+  if (step) {
+    const tut = G.goals.filter(g => g.tut), n = tut.indexOf(step) + 1;
+    $('#goals-title').textContent = 'Tutorial';
+    $('#goal-count').textContent = `step ${n} of ${tut.length}`;
+    html = `<li class="step"><span class="box"></span><b>${esc(step.text)}</b>${step.reward ? ` <em>${coin(step.reward)}</em>` : ''}</li>` +
+      `<li class="hint">${esc(step.hint)}</li><li class="skip"><button data-skip>${confirming('skip') ? 'Click again to skip the tutorial' : 'Skip tutorial'}</button></li>`;
+  } else {
+    const goals = G.goals.filter(g => !g.done && (!g.tut || !G.tutorialOff)).filter(g => !g.tut).slice(0, 3);
+    const rest = G.goals.filter(g => !g.tut);
+    $('#goals-title').textContent = 'Goals';
+    $('#goal-count').textContent = `${rest.filter(g => g.done).length}/${rest.length} done`;
+    html = goals.length ? goals.map(g => `<li><span class="box"></span>${esc(g.text)} <em>${coin(g.reward)}</em></li>`).join('') : '<li>All goals complete. The valley is yours.</li>';
+  }
   if (html !== lastHud) { $('#goal-list').innerHTML = html; lastHud = html; }
+  applyHighlights(step);
 }
 
 // ---------- inspector ----------
@@ -306,6 +367,7 @@ function renderPanel() {
   if (tabEl._html !== th) { tabEl.innerHTML = th; tabEl._html = th; }
   const fn = { overview: panelOverview, staff: panelStaff, hire: panelHire, research: panelResearch, trade: panelTrade, letters: panelLetters, policies: panelPolicies, game: panelGame }[UI.tab];
   const html = fn();
+  applyHighlights(currentStep());
   const body = $('#panel-body');
   if (body._html !== html) { body.innerHTML = html; body._html = html; if (UI.tab === 'overview') drawCharts(); }
 }
@@ -461,7 +523,7 @@ function onAction(e) {
     case 'follow': centerOn(w.x, w.y); break;
     case 'fire': if (askConfirm('fire' + w.id)) { fireWorker(w); toast(`${w.name} has left the mill.`); UI.sel = null; } break;
     case 'firew': if (askConfirm('fire' + id)) { const x = G.workers.find(o => o.id === id); if (x) { fireWorker(x); toast(`${x.name} has left the mill.`); } } break;
-    case 'selw': { const x = G.workers.find(o => o.id === +v); if (x) { UI.sel = { kind: 'worker', ref: x }; UI.insTab = 'summary'; centerOn(x.x, x.y); } break; }
+    case 'selw': { const x = G.workers.find(o => o.id === +v); if (x) { G.tutor.selected = true; UI.sel = { kind: 'worker', ref: x }; UI.insTab = 'summary'; centerOn(x.x, x.y); } break; }
     case 'recipe': bd.recipe = v; bd.prog = 0; break;
     case 'demolish': if (askConfirm('demo' + bd.id)) { removeBuilding(bd); UI.sel = null; } break;
     case 'marktree': UI.sel.ref.mark = !UI.sel.ref.mark; break;
@@ -513,7 +575,7 @@ function initInput() {
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
       R.cam.x -= (cx - pinch.cx) / R.cam.s; R.cam.y -= (cy - pinch.cy) / R.cam.s; pinch.cx = cx; pinch.cy = cy;
-      const ns = Math.round(pinch.s * d / pinch.d);
+      const ns = nearestZoom(pinch.s * d / pinch.d);
       if (ns !== R.cam.s) setZoom(ns, cx, cy);
       clampCam();
       return;
@@ -524,9 +586,10 @@ function initInput() {
     if (pan) {
       const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
       pan.moved += Math.abs(dx) + Math.abs(dy);
-      if (pan.moved > 6) { R.cam.x -= dx / R.cam.s; R.cam.y -= dy / R.cam.s; clampCam(); }
+      if (pan.moved > 6) { R.cam.x -= dx / R.cam.s; R.cam.y -= dy / R.cam.s; clampCam(); if (playing) G.tutor.panned = true; }
       pan.x = e.clientX; pan.y = e.clientY;
     }
+    showTip(e, t);
     cv.style.cursor = pan && pan.moved > 6 ? 'grabbing' : UI.tool === 'select' ? (UI.hoverWorker || hoverClickable(t) ? 'pointer' : 'default') : 'crosshair';
   });
   const up = (e) => {
@@ -536,12 +599,22 @@ function initInput() {
       if (pan.moved <= 6) { if (pan.cancelTool) setTool('select'); else if (UI.tool === 'select') clickSelect(e.clientX, e.clientY); }
       pan = null; return;
     }
-    if (UI.drag) { applyTool(); UI.drag = null; if (!e.shiftKey && UI.tool !== 'chop' && UI.tool !== 'plant') UI.unmark = false; }
+    if (UI.drag) { applyTool(e.shiftKey); UI.drag = null; if (!e.shiftKey && UI.tool !== 'chop' && UI.tool !== 'plant') UI.unmark = false; }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); pinch = null; pan = null; UI.drag = null; });
-  cv.addEventListener('pointerleave', () => { if (!pan && !UI.drag) { UI.hover = null; UI.hoverWorker = null; } });
-  cv.addEventListener('wheel', e => { e.preventDefault(); setZoom(R.cam.s + (e.deltaY < 0 ? 1 : -1), e.clientX, e.clientY); }, { passive: false });
+  cv.addEventListener('pointerleave', () => { $('#tip').hidden = true; if (!pan && !UI.drag) { UI.hover = null; UI.hoverWorker = null; } });
+  // wheel: add up scroll distance so one zoom step needs about two notches of a mouse wheel
+  let wheelAcc = 0, wheelT = 0;
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    const now = performance.now();
+    if (now - wheelT > 350 || Math.sign(dy) !== Math.sign(wheelAcc)) wheelAcc = 0;
+    wheelT = now; wheelAcc += dy;
+    const need = e.ctrlKey ? 60 : 200; // trackpad pinches arrive as small ctrl+wheel steps
+    if (Math.abs(wheelAcc) >= need) { zoomStep(wheelAcc < 0 ? 1 : -1, e.clientX, e.clientY); wheelAcc = 0; }
+  }, { passive: false });
   const keys = new Set();
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
@@ -556,8 +629,8 @@ function initInput() {
     const map = { v: 'select', '1': 'camp', '2': 'factory', '3': 'power', c: 'belt', f: 'chop', p: 'plant', t: 'path', b: 'bulldoze', x: 'survey', m: 'mill' };
     if (map[k] && !e.ctrlKey && !e.metaKey) pickTool(map[k]);
     if (k === 'n' && !e.ctrlKey && !e.metaKey) UI.toggleSound();
-    if (k === '=' || k === '+' || k === 'e') setZoom(R.cam.s + 1);
-    if (k === '-' || k === 'q') setZoom(R.cam.s - 1);
+    if (k === '=' || k === '+' || k === 'e') zoomStep(1);
+    if (k === '-' || k === 'q') zoomStep(-1);
   });
   window.addEventListener('keyup', e => {
     const k = e.key.toLowerCase(); keys.delete(k);
@@ -570,6 +643,7 @@ function initInput() {
 function panKeys(dt) {
   const k = UI.keys; if (!k || !k.size) return;
   const sp = 420 * dt / R.cam.s;
+  if (playing && ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(x => k.has(x))) G.tutor.panned = true;
   if (k.has('w') || k.has('arrowup')) R.cam.y -= sp;
   if (k.has('s') || k.has('arrowdown')) R.cam.y += sp;
   if (k.has('a') || k.has('arrowleft')) R.cam.x -= sp;
@@ -593,7 +667,7 @@ function hoverClickable(t) {
 }
 function clickSelect(cssX, cssY) {
   const w = workerAt(cssX, cssY);
-  if (w) { UI.sel = { kind: 'worker', ref: w }; UI.insTab = 'summary'; renderInspector(); return; }
+  if (w) { UI.sel = { kind: 'worker', ref: w }; UI.insTab = 'summary'; G.tutor.selected = true; renderInspector(); return; }
   const t = tileAtCss(cssX, cssY);
   if (!inMap(t.x, t.y)) { UI.sel = null; renderInspector(); return; }
   const s = G.secrets.find(s => s.found && !s.done && Math.abs(s.x - t.x) <= 1 && Math.abs(s.y - t.y) <= 1 && (s.x === t.x && s.y === t.y || s.kind === 'ruin'));
@@ -610,13 +684,33 @@ function clickSelect(cssX, cssY) {
   }
   UI.sel = null; renderInspector();
 }
-function applyTool() {
+// a label that follows the cursor and names what is under it
+function showTip(e, t) {
+  const tip = $('#tip');
+  let text = '';
+  if (UI.tool === 'select' && !(pan && pan.moved > 6) && !UI.hoverWorker && inMap(t.x, t.y) && e.pointerType === 'mouse') {
+    const k = idx(t.x, t.y), b = bAt(t.x, t.y);
+    const s = G.secrets.find(s => s.found && !s.done && s.x === t.x && s.y === t.y);
+    if (s) text = `${SECRET_INFO[s.kind].name}: click to investigate`;
+    else if (b) {
+      const d = BDEF[b.type];
+      const state = b.broken ? 'broken down' : d.machine && b.type !== 'steam' ? (b.active ? 'working' : b.wants ? 'no power' : 'waiting for materials') : b.type === 'steam' ? (b.gen > 0 ? 'running' : 'out of fuel') : '';
+      text = d.name + (state ? `: ${state}` : '');
+    } else if (G.tree[k] && G.reveal[k]) {
+      const tr = G.tree[k];
+      text = tr.sp === 'ancient' ? 'The Ancient Oak' : `${TREE_SPECIES[tr.sp].name}, ${tr.dead ? 'dead' : treeStage(tr)}${tr.sick ? ', blighted' : ''}${tr.mark ? ', marked' : ''}`;
+    } else if (G.belt[k]) text = 'Conveyor';
+  }
+  tip.hidden = !text;
+  if (text) { tip.textContent = text; tip.style.left = (e.clientX + 16) + 'px'; tip.style.top = (e.clientY + 18) + 'px'; }
+}
+function applyTool(keepTool) {
   const tool = UI.tool, h = UI.hover;
   if (!h) return;
   if (BDEF[tool]) {
     const d = BDEF[tool];
     const b = placeBuilding(tool, h.x - Math.floor((d.w - 1) / 2), h.y - Math.floor((d.h - 1) / 2));
-    if (b && (tool === 'sawmill' || tool === 'workshop' || tool === 'steam' || tool === 'depot')) { /* keep tool for quick placement */ }
+    if (b && !keepTool) setTool('select'); // one building per pick; Shift keeps the tool for more
     return;
   }
   const tiles = UI.dragTiles();
@@ -637,6 +731,7 @@ function applyTool() {
   } else if (tool === 'chop') {
     for (const [x, y] of tiles) { if (!inMap(x, y)) continue; const t = G.tree[idx(x, y)]; if (t && t.sp !== 'ancient' && G.reveal[idx(x, y)] && treeStage(t) !== 'sapling') { t.mark = !UI.unmark; n++; } }
     if (n) toast(`${n} tree${n > 1 ? 's' : ''} ${UI.unmark ? 'unmarked' : 'marked for felling'}.`);
+    if (!UI.unmark) G.tutor.marked = (G.tutor.marked || 0) + n;
   } else if (tool === 'plant') {
     for (const [x, y] of tiles) { if (!inMap(x, y)) continue; const k = idx(x, y); if (UI.unmark) { if (G.plantMark[k]) { G.plantMark[k] = 0; n++; } } else if (plantable(x, y) && G.reveal[k]) { G.plantMark[k] = 1; n++; } }
     if (n && !UI.unmark && !G.workers.some(w => w.role === 'arborist')) toast('Marked. Hire an Arborist to plant these.', 'bad');
@@ -673,6 +768,7 @@ function initMinimap() {
     const r = cv.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width * MINI.w, my = (e.clientY - r.top) / r.height * MINI.h;
     R.cam.x = (mx - MINI.w / 2) / MINI.s * HTW; R.cam.y = my / (MINI.s / 2) * HTH; clampCam();
+    if (playing) G.tutor.panned = true;
     drawMinimap(false);
   };
   let down = false;
@@ -723,6 +819,7 @@ function drawMinimap(full) {
 }
 
 function uiTick() {
+  if (playing) checkGoals(); // also while paused, so tutorial steps tick over
   updateHud();
   const mm = $('#minimap'); // skip drawing while hidden (collapsed, or on a phone)
   if (!mm.classList.contains('collapsed') && mm.getClientRects().length && getComputedStyle(mm).display !== 'none') drawMinimap(MINI.tick++ % 4 === 0);

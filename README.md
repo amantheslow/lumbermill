@@ -4,6 +4,8 @@ A playable browser demo of a forest factory-builder, made as a tribute to *Lumbe
 
 Open `index.html` through any static web server (for example `python3 -m http.server`) and click **Start the mill**. The page has no build step and no dependencies.
 
+You start small: the Mill Office, one tent, a campfire, two lumberjacks and 2,000 coins. A 14-step tutorial in the top-left panel walks you from felling your first trees to a powered sawmill selling planks, hiring, research and trade. It highlights the button or menu entry to press at each step and pays a small reward per step. You can skip it, and bring it back from the **?** button.
+
 ## What's in the demo
 
 - **Living forest.** A procedurally generated island of spruce, pine, maple and birch. Trees grow from sapling to old age, seed new saplings nearby, die and fall, and catch blight that spreads. A fog of war hides the woods until your staff or a survey crew explore them, and five secrets are hidden in the forest.
@@ -30,8 +32,11 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 
 | Action | Input |
 | --- | --- |
-| Pan | Drag the map, WASD or the arrow keys |
-| Zoom | Mouse wheel, pinch, or Q / E |
+| Pan | Drag the map, WASD or the arrow keys, or click the minimap. The house button returns to the mill |
+| Zoom | Mouse wheel (about two notches per step), pinch, the + and − buttons, or Q / E |
+| Place a building | Choose it from Camp, Factory or Power, then click. Hold Shift to place several |
+| What's this? | Hover over anything with Select on |
+| All controls | The **?** button |
 | Tools | Toolbar at the bottom left. Keys: 1 camp, 2 factory, 3 power, C conveyor, F fell, P plant, T path, B bulldoze, X survey |
 | Rotate a conveyor | R |
 | Mill Ledger (staff, hiring, research, trade, letters, policies) | M |

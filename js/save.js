@@ -31,7 +31,7 @@ function serializeGame() {
     candidates: G.candidates, candDay: G.candDay,
     letters: G.letters, offers: G.offers, contracts: G.contracts,
     research: G.research, market: G.market, policy: G.policy, stats: G.stats,
-    goals: G.goals.filter(g => g.done).map(g => g.id),
+    goals: G.goals.filter(g => g.done).map(g => g.id), tutor: G.tutor, tutorialOff: G.tutorialOff,
     initialForest: G.initialForest, health: G.health, warned: G.warned, rivalFlood: G.rivalFlood, lowCash: G.lowCash,
     camera: { x: R.cam.x, y: R.cam.y, s: R.cam.s },
   };
@@ -150,6 +150,10 @@ function restoreGame(d) {
     setupGoals();
     const doneGoals = arr(d.goals);
     for (const goal of G.goals) goal.done = doneGoals.includes(goal.id);
+    const tu = obj(d.tutor);
+    G.tutor = { panned: !!tu.panned, zoomed: !!tu.zoomed, selected: !!tu.selected, marked: Math.max(0, int(tu.marked)) };
+    // saves from before the tutorial existed: skip it rather than replay it mid-game
+    G.tutorialOff = d.tutorialOff === undefined ? doneGoals.length > 0 : !!d.tutorialOff;
     G.initialForest = Math.max(1, num(d.initialForest, forestScore()));
     G.health = int(d.health, 100); G.warned = int(d.warned, 100); G.lowCash = int(d.lowCash);
     const rf_ = obj(d.rivalFlood);

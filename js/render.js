@@ -149,9 +149,17 @@ function rebuildGround() {
 function worldToScreen(wx, wy) { return [wx + R.ox, wy + R.oy]; }
 function screenToWorld(cssX, cssY) { return [cssX / R.cam.s - R.ox, cssY / R.cam.s - R.oy]; }
 function tileAtCss(cssX, cssY) { const [wx, wy] = screenToWorld(cssX, cssY); const t = screenToTile(wx, wy); return { x: Math.floor(t.x), y: Math.floor(t.y), fx: t.x, fy: t.y }; }
+// zoom levels: on high-density screens half steps stay crisp (1.5 art px = 3 device px), elsewhere whole steps only
+function zoomLevels() { return R.dpr >= 2 ? [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6] : [1, 2, 3, 4, 5, 6]; }
+function nearestZoom(s) { return zoomLevels().reduce((a, b) => (Math.abs(b - s) < Math.abs(a - s) ? b : a)); }
+function zoomStep(dir, cssX, cssY) {
+  const L = zoomLevels(), i = L.indexOf(nearestZoom(R.cam.s));
+  setZoom(L[clamp(i + dir, 0, L.length - 1)], cssX, cssY);
+}
 function setZoom(s, cssX = R.cssW / 2, cssY = R.cssH / 2) {
-  s = clamp(s, 1, 6);
+  s = nearestZoom(clamp(s, 1, 6));
   if (s === R.cam.s) return;
+  if (G && G.tutor && typeof playing !== 'undefined' && playing) G.tutor.zoomed = true;
   const [wx, wy] = screenToWorld(cssX, cssY);
   R.cam.s = s; resize();
   // keep the point under the cursor fixed

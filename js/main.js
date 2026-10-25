@@ -53,7 +53,7 @@ function startNew() {
   setSpeed(1);
   lastAutoDay = dayOf();
   const c = bCenter(G.hq); centerOn(c.x + 1, c.y + 1);
-  toast('Your crew is ready. Work through the goals to learn the ropes.', 'good');
+  toast('Your crew is ready. Follow the tutorial on the left.', 'good');
 }
 
 function boot() {

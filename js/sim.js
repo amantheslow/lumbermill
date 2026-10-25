@@ -30,10 +30,10 @@ const BDEF = {
   campfire: { name: 'Campfire', cat: 'camp', w: 1, h: 1, cost: 60, desc: 'Staff gather here in the evening. Lifts morale and lights the night.' },
   flowers: { name: 'Flower Bed', cat: 'camp', w: 1, h: 1, cost: 80, req: 'comforts', desc: 'A little colour. Small morale boost for everyone.' },
   intake: { name: 'Log Drop', cat: 'factory', w: 1, h: 1, cost: 100, desc: 'Lumberjacks drop logs here. Pushes logs onto any conveyor leading away.' },
-  sawmill: { name: 'Sawmill', cat: 'factory', w: 2, h: 2, cost: 900, power: 10, machine: true, recipes: ['plank'], desc: 'Saws 1 log into 3 planks. Needs power.' },
+  sawmill: { name: 'Sawmill', cat: 'factory', w: 2, h: 2, cost: 700, power: 10, machine: true, recipes: ['plank'], desc: 'Saws 1 log into 3 planks. Needs power.' },
   workshop: { name: 'Workshop', cat: 'factory', w: 2, h: 2, cost: 1300, power: 6, machine: true, req: 'carpentry', recipes: ['crate', 'chair', 'table'], desc: 'Crafts planks into crates, chairs and tables. Needs power.' },
-  depot: { name: 'Trade Depot', cat: 'factory', w: 2, h: 2, cost: 600, desc: 'Sells anything a conveyor brings it. Fills trade contracts first.' },
-  steam: { name: 'Steam Engine', cat: 'power', w: 2, h: 2, cost: 1000, gen: 30, machine: true, desc: 'Burns logs to make 30 power. Feed it by conveyor or let lumberjacks top it up.' },
+  depot: { name: 'Trade Depot', cat: 'factory', w: 2, h: 2, cost: 450, desc: 'Sells anything a conveyor brings it. Fills trade contracts first.' },
+  steam: { name: 'Steam Engine', cat: 'power', w: 2, h: 2, cost: 800, gen: 30, machine: true, desc: 'Burns logs to make 30 power. Feed it by conveyor or let lumberjacks top it up.' },
   solar: { name: 'Solar Array', cat: 'power', w: 2, h: 2, cost: 900, gen: 12, req: 'solar', desc: 'Up to 12 power in daylight. No fuel.' },
   pole: { name: 'Power Pole', cat: 'power', w: 1, h: 1, cost: 40, range: 6, desc: 'Carries power. Links to poles within 7 tiles and powers machines within 6.' },
 };
@@ -142,7 +142,8 @@ function fxChips(tx, ty) { for (let i = 0; i < 3; i++) G.fx.push({ k: 'chip', x:
 // ---------- world generation ----------
 function blankState(seed) {
   const g = {
-    seed, t: 6 * 60, speed: 1, money: 3000, uid: 0,
+    seed, t: 6 * 60, speed: 1, money: 2000, uid: 0,
+    tutor: { panned: false, zoomed: false, selected: false }, tutorialOff: false,
     tiles: new Uint8Array(MAP * MAP), reveal: new Uint8Array(MAP * MAP), occ: new Int32Array(MAP * MAP),
     tree: new Array(MAP * MAP).fill(null), trees: [], stump: new Uint8Array(MAP * MAP),
     plantMark: new Uint8Array(MAP * MAP), belt: new Array(MAP * MAP).fill(null), belts: [],
@@ -215,23 +216,19 @@ function newGame(seed) {
   // starting camp
   const hx = c - 1, hy = c - 1;
   placeBuilding('hq', hx, hy, true);
-  placeBuilding('tent', hx - 4, hy + 3, true);
-  placeBuilding('tent', hx - 4, hy + 5, true);
-  placeBuilding('campfire', hx - 3, hy + 2, true);
-  placeBuilding('well', hx + 4, hy + 4, true);
-  placeBuilding('outhouse', hx + 1, hy + 6, true);
-  const pathTiles = [];
-  for (let i = -5; i <= 6; i++) pathTiles.push([hx + 1, hy + 3 + Math.max(0, i)], [hx + 1 + i, hy + 4]);
-  for (const [x, y] of pathTiles) if (isLand(x, y) && !G.occ[idx(x, y)]) G.tiles[idx(x, y)] = 2;
+  // a modest start: the office, one tent and a campfire, joined by a short path
+  placeBuilding('tent', hx - 3, hy + 3, true);
+  placeBuilding('campfire', hx - 2, hy + 1, true);
+  for (let i = 0; i <= 3; i++) for (const [x, y] of [[hx + 1, hy + 3 + i], [hx + 1 - i, hy + 4]]) if (isLand(x, y) && !G.occ[idx(x, y)]) G.tiles[idx(x, y)] = 2;
   G.hq = G.buildings[0];
-  revealCircle(c, c, 13);
+  revealCircle(c, c, 11);
 
-  for (const role of ['lumberjack', 'lumberjack', 'arborist']) hireWorker(makeCandidate(role, 1), true);
+  for (const role of ['lumberjack', 'lumberjack']) hireWorker(makeCandidate(role, 1), true);
   refreshCandidates();
   for (let i = 0; i < 2; i++) newOffer(true);
   setupGoals();
   letter('Forestry Board', 'Welcome to the valley',
-    `Congratulations on your lease of the old mill site.\n\nThe forest here is yours to manage. Fell trees for timber, but replant what you take: we survey the woods every season, and a mill that strips its forest will be fined.\n\nYour crew of three is waiting by the campfire. Mark some trees for felling, set up a Log Drop, and get a sawmill turning.\n\nGood luck.`);
+    `Congratulations on your lease of the old mill site.\n\nThe forest here is yours to manage. Fell trees for timber, but replant what you take: we survey the woods every season, and a mill that strips its forest will be fined.\n\nYour two lumberjacks are waiting by the campfire. The tutorial on the left will walk you through your first days.\n\nGood luck.`);
   letter('Mill Ledger', 'How the mill makes money',
     `Lumberjacks carry logs to the nearest Log Drop, Steam Engine or the Mill Office.\n\nLogs left at the office are sold to a passing hauler at a poor price. You earn far more by sawing them into planks and crafting furniture, then sending it by conveyor to a Trade Depot.\n\nTrade companies post contracts in the Trade tab. They pay above market if you deliver on time.`);
   return G;
@@ -1181,20 +1178,45 @@ function startResearch(r) {
 }
 
 // ---------- goals ----------
+// Goals: tutorial steps (tut) are done in order, one at a time; the rest can be done in any order.
+// target: what to highlight in the interface; cards: build-menu entries to highlight; tab: ledger tab to highlight.
 function setupGoals() {
+  const built = (t) => G.buildings.some(b => b.type === t);
+  const staff = (r) => G.workers.some(w => w.role === r);
   G.goals = [
-    { id: 'fell', text: 'Fell 10 logs', reward: 200, done: false, test: () => G.stats.logsCut >= 10 },
-    { id: 'drop', text: 'Build a Log Drop', reward: 150, test: () => G.buildings.some(b => b.type === 'intake') },
-    { id: 'saw', text: 'Power a Sawmill with a Steam Engine', reward: 400, test: () => G.buildings.some(b => b.type === 'sawmill' && b.sat > 0) },
-    { id: 'planks', text: 'Sell 30 planks at a Trade Depot', reward: 500, test: () => (G.stats.sold.plank || 0) >= 30 },
-    { id: 'craft', text: 'Research Carpentry and craft a chair', reward: 600, test: () => (G.stats.made.chair || 0) >= 1 },
+    { id: 't_look', tut: true, text: 'Look around', hint: 'Drag the map to move around, or use the WASD or arrow keys. The minimap at the bottom right jumps the view too.', reward: 0, test: () => G.tutor.panned },
+    { id: 't_zoom', tut: true, text: 'Zoom in and out', hint: 'Scroll the mouse wheel, pinch on a trackpad or touch screen, or use the + and − buttons at the bottom right.', target: '#zoom', reward: 0, test: () => G.tutor.zoomed },
+    { id: 't_select', tut: true, text: 'Check on your crew', hint: 'Click one of your two lumberjacks to see what they are doing and how they feel.', reward: 0, test: () => G.tutor.selected },
+    { id: 't_mark', tut: true, text: 'Mark 5 trees for felling', hint: 'Choose Fell in the toolbar, then drag across some grown trees. Lumberjacks fell the trees you mark first.', target: '.tbtn[data-tool=chop]', reward: 100, test: () => (G.tutor.marked || 0) >= 5 || G.stats.logsCut >= 10 },
+    { id: 'fell', tut: true, text: 'Fell 10 logs', hint: 'Logs left at the Mill Office sell, but cheaply. Speed up time with the arrows next to the date while you wait.', target: '#speed', reward: 150, test: () => G.stats.logsCut >= 10 },
+    { id: 't_water', tut: true, text: 'Build a Well and an Outhouse', hint: 'Thirsty staff get grumpy and slow. Open Camp in the toolbar, choose the Well, then click open ground near camp. Do the same for an Outhouse.', target: '.tbtn[data-tool=camp]', cards: ['well', 'outhouse'], reward: 150, test: () => built('well') && built('outhouse') },
+    { id: 'drop', tut: true, text: 'Build a Log Drop by the trees', hint: 'Factory → Log Drop. Lumberjacks leave logs there instead of walking back to the office.', target: '.tbtn[data-tool=factory]', cards: ['intake'], reward: 100, test: () => built('intake') },
+    { id: 't_saw', tut: true, text: 'Build a Sawmill', hint: 'Factory → Sawmill. It turns each log into 3 planks, worth twice as much. Leave space around it for conveyors.', target: '.tbtn[data-tool=factory]', cards: ['sawmill'], reward: 250, test: () => built('sawmill') },
+    { id: 'saw', tut: true, text: 'Power the Sawmill', hint: 'Power → Steam Engine. Put it within 3 tiles of the sawmill, or link them with Power Poles. Lumberjacks keep it fed with logs.', target: '.tbtn[data-tool=power]', cards: ['steam', 'pole'], reward: 300, test: () => G.buildings.some(b => b.type === 'sawmill' && b.net) },
+    { id: 't_belt', tut: true, text: 'Lay a conveyor from the Log Drop to the Sawmill', hint: 'Choose Conveyor, then drag from the tile next to the Log Drop up to the Sawmill. Logs travel the way you drag.', target: '.tbtn[data-tool=belt]', reward: 150, test: () => G.buildings.some(b => b.type === 'sawmill' && (b.made > 0 || (b.inv.log || 0) > 0)) },
+    { id: 't_depot', tut: true, text: 'Sell planks at a Trade Depot', hint: 'Factory → Trade Depot, then lay a conveyor from the Sawmill to it. Anything that reaches the depot is sold.', target: '.tbtn[data-tool=factory]', cards: ['depot'], reward: 200, test: () => (G.stats.sold.plank || 0) >= 1 },
+    { id: 't_hire', tut: true, text: 'Hire an Arborist', hint: 'Open the Mill Ledger (M) and go to Hire. Arborists replant stumps and treat blight, so the forest keeps up with your felling.', target: '.tbtn[data-tool=mill]', tab: 'hire', reward: 150, test: () => staff('arborist') },
+    { id: 't_research', tut: true, text: 'Start researching Carpentry', hint: 'Mill Ledger → Research. Carpentry unlocks the Workshop, which turns planks into crates and chairs.', target: '.tbtn[data-tool=mill]', tab: 'research', reward: 100, test: () => has('carpentry') || (G.research.active && G.research.active.id === 'carpentry') },
+    { id: 't_trade', tut: true, text: 'Accept a trade contract', hint: 'Mill Ledger → Trade. Contracts pay above market price if you deliver in time. Goods reaching the depot fill them first.', target: '.tbtn[data-tool=mill]', tab: 'trade', reward: 100, test: () => G.contracts.length > 0 || G.stats.contracts > 0 },
+    { id: 'planks', text: 'Sell 30 planks', reward: 400, test: () => (G.stats.sold.plank || 0) >= 30 },
+    { id: 'craft', text: 'Craft a chair in a Workshop', reward: 600, test: () => (G.stats.made.chair || 0) >= 1 },
     { id: 'contract', text: 'Complete a trade contract', reward: 800, test: () => G.stats.contracts >= 1 },
+    { id: 'mech', text: 'Hire a Mechanic to keep machines running', reward: 200, test: () => staff('mechanic') },
     { id: 'secrets', text: 'Find 3 forest secrets', reward: 700, test: () => G.stats.secrets >= 3 },
     { id: 'green', text: 'Plant 25 saplings', reward: 500, test: () => G.stats.planted >= 25 },
   ];
 }
+function currentStep() { return G.tutorialOff ? null : G.goals.find(g => g.tut && !g.done) || null; }
 function checkGoals() {
-  for (const g of G.goals) if (!g.done && g.test()) {
+  const step = currentStep();
+  if (step && step.test()) {
+    step.done = true;
+    if (step.reward) money(step.reward);
+    sfx('coin');
+    const next = currentStep();
+    toast(next ? `Done: ${step.text}${step.reward ? ` (+${fmt(step.reward)})` : ''}` : 'Tutorial complete. The rest of the valley is yours.', 'good');
+  }
+  for (const g of G.goals) if (!g.tut && !g.done && g.test()) {
     g.done = true; money(g.reward);
     toast(`Goal complete: ${g.text} (+${fmt(g.reward)})`, 'good');
   }
