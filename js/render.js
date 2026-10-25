@@ -410,7 +410,7 @@ function drawOverlay(time) {
   const c = R.octx, s = R.cam.s * R.dpr;
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, R.ov.width, R.ov.height);
-  c.font = `${Math.round(11 * R.dpr * Math.max(1, R.cam.s / 3))}px "Pixelify Sans", ui-monospace, monospace`;
+  c.font = `${Math.round(12 * R.dpr * Math.max(1, R.cam.s / 3))}px "Jersey 10", "Pixelify Sans", ui-monospace, monospace`;
   c.textAlign = 'center';
   c.lineJoin = 'round';
   if ('fontVariantLigatures' in c) c.fontVariantLigatures = 'none';

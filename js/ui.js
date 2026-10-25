@@ -209,6 +209,7 @@ function inspectWorker(w) {
     body = `<div class="wsum"><img class="portrait" src="${portraitURL(w)}" alt=""><div>
       <span class="role" style="background:${role.color}">${role.name}</span>
       <div class="kv"><span>Level</span><b>${w.level}/5</b></div>
+      <div class="kv" title="Experience towards the next level"><span>Experience</span><div class="bar"><i class="good" style="width:${(xpProgress(w) * 100).toFixed(0)}%"></i></div></div>
       <div class="kv"><span>${role.stat}</span><b>${w.skill.toFixed(2)}</b></div>
       <div class="kv"><span>Personality</span><b title="${esc(P_.desc)}">${P_.name}</b></div></div></div>
       <div class="kv"><span>Pay per day</span><span class="pay"><button data-act="pay" data-v="-5" aria-label="Lower pay">-</button>${coin(w.pay)}<button data-act="pay" data-v="5" aria-label="Raise pay">+</button></span></div>
@@ -338,7 +339,7 @@ function drawCharts() {
     const c = document.getElementById(id); if (!c) return;
     const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
     x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(0, 0, c.width, c.height);
-    if (h.length < 2) { x.fillStyle = '#b9a894'; x.font = '12px "Pixelify Sans", monospace'; x.fillText('Chart fills in day by day', 10, 40); return; }
+    if (h.length < 2) { x.fillStyle = '#b9a894'; x.font = '12px "Jersey 10", "Pixelify Sans", monospace'; x.fillText('Chart fills in day by day', 10, 40); return; }
     const vals = h.map(e => e[key]);
     const lo = Math.min(0, ...vals), hi = fixedMax || Math.max(...vals, 1);
     x.strokeStyle = 'rgba(239,228,208,0.12)'; x.beginPath(); for (let i = 1; i < 4; i++) { x.moveTo(0, i * c.height / 4); x.lineTo(c.width, i * c.height / 4); } x.stroke();

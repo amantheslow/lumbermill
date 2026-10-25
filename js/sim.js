@@ -8,10 +8,10 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const ITEMS = {
   log: { name: 'Logs', one: 'log', base: 12 },
-  plank: { name: 'Planks', one: 'plank', base: 6 },
-  crate: { name: 'Crates', one: 'crate', base: 30 },
-  chair: { name: 'Chairs', one: 'chair', base: 46 },
-  table: { name: 'Tables', one: 'table', base: 110 },
+  plank: { name: 'Planks', one: 'plank', base: 8 },
+  crate: { name: 'Crates', one: 'crate', base: 34 },
+  chair: { name: 'Chairs', one: 'chair', base: 52 },
+  table: { name: 'Tables', one: 'table', base: 120 },
 };
 const RECIPES = {
   plank: { name: 'Planks', in: { log: 1 }, out: 'plank', n: 3, time: 4 },
@@ -383,15 +383,10 @@ function receive(b, item, n = 1, from) {
     case 'steam': b.fuel += n; break;
     case 'sawmill': case 'workshop': b.inv[item] = (b.inv[item] || 0) + n; break;
     case 'depot': sellItem(item, n, b); break;
-    case 'hq': {
-      const v = Math.round(marketPrice('log') * 0.6 * n);
-      money(v, b.x + 1.5, b.y + 1.5);
-      G.stats.sold.log = (G.stats.sold.log || 0) + n;
-      break;
-    }
+    case 'hq': sellItem('log', n, b, 0.6); break; // haulers pay poorly, but log contracts still count
   }
 }
-function sellItem(item, n, b) {
+function sellItem(item, n, b, priceFactor = 1) {
   for (const c of G.contracts) {
     if (c.item !== item || c.delivered >= c.qty) continue;
     const k = Math.min(n, c.qty - c.delivered);
@@ -400,7 +395,7 @@ function sellItem(item, n, b) {
     if (c.delivered >= c.qty) completeContract(c);
     if (n <= 0) return;
   }
-  const v = marketPrice(item) * n;
+  const v = marketPrice(item) * n * priceFactor;
   G.stats.sold[item] = (G.stats.sold[item] || 0) + n;
   G.money += v; G.stats.revenue += v;
   b.saleText = (b.saleText || 0) + v;
@@ -636,12 +631,30 @@ function hireWorker(c, free = false) {
     needs: { energy: rf(70, 95), hydration: rf(60, 95), bladder: rf(0, 30) },
     mood: { overall: 70, physical: 80, mental: 65, pay: 60, morale: 65, colleagues: 70 },
     low: 0, rogue: false, thought: 'Just arrived. Nice trees.', frames: makeWorkerFrames(c.ap), anim: 0, back: false, flip: false,
-    cool: rf(0, 1), lastTile: -1, home: null, xp: 0, hidden: false,
+    cool: rf(0, 1), lastTile: -1, home: null, xp: XP_FOR_LEVEL[c.level] || 0, hidden: false,
   };
   if (hq) { const s = nearestStand(hq, hq.x + 1, hq.y + 4) || [hq.x + 1, hq.y + 3]; w.x = s[0] + 0.5; w.y = s[1] + 0.5; }
   G.workers.push(w);
   if (!free) { toast(`${w.name} joined as a ${ROLES[w.role].name}.`, 'good'); }
   return w;
+}
+// experience: staff level up with work, get better at it, and expect better pay
+const XP_FOR_LEVEL = [0, 0, 14, 36, 66, 110];
+function xpProgress(w) {
+  if (w.level >= 5) return 1;
+  const lo = XP_FOR_LEVEL[w.level], hi = XP_FOR_LEVEL[w.level + 1];
+  return clamp((w.xp - lo) / (hi - lo), 0, 1);
+}
+function gainXp(w, n) {
+  w.xp += n;
+  if (w.level < 5 && w.xp < XP_FOR_LEVEL[w.level]) w.xp = XP_FOR_LEVEL[w.level]; // hires arrive with their level's experience
+  while (w.level < 5 && w.xp >= XP_FOR_LEVEL[w.level + 1]) {
+    w.level++; w.skill = +(w.skill + 0.12).toFixed(2);
+    w.mood.morale = Math.min(100, w.mood.morale + 10);
+    w.thought = 'I\'m getting good at this. A raise would be nice.';
+    fxText(w.x, w.y, 'Level up!', '#9fe39a');
+    toast(`${w.name} reached level ${w.level}. They work faster, and will expect better pay.`, 'good');
+  }
 }
 function fireWorker(w) {
   cancelTask(w);
@@ -855,7 +868,7 @@ function arrive(w) {
     case 'deliver': w.timer = 0.6; break;
     case 'chop': {
       if (!G.tree[idx(t.tree.x, t.tree.y)] || G.tree[idx(t.tree.x, t.tree.y)] !== t.tree) { cancelTask(w); return; }
-      const base = t.tree.dead ? 2.5 : 3.5 + treeYield(t.tree) * 0.9;
+      const base = t.tree.dead ? 2.2 : 3 + treeYield(t.tree) * 0.8;
       w.timer = base / workSpeed(w); t.total = w.timer;
       break;
     }
@@ -891,18 +904,18 @@ function finishAct(w) {
         G.stump[idx(tr.x, tr.y)] = tr.dead ? 0 : 1;
         if (n > 0) { w.carry = { type: 'log', n: (w.carry ? w.carry.n : 0) + n }; G.stats.logsCut += n; }
         for (let i = 0; i < 6; i++) fxChips(tr.x + 0.5, tr.y + 0.5);
-        w.xp++;
+        gainXp(w, 1);
       }
       break;
     }
-    case 'treat': if (t.tree && !t.tree.dead) { t.tree.sick = 0; fxText(t.tree.x + 0.5, t.tree.y + 0.5, 'Cured', '#9fe39a'); } t.tree && (t.tree.res = 0); break;
+    case 'treat': if (t.tree && !t.tree.dead) { t.tree.sick = 0; fxText(t.tree.x + 0.5, t.tree.y + 0.5, 'Cured', '#9fe39a'); gainXp(w, 2); } t.tree && (t.tree.res = 0); break;
     case 'plant': {
       const x = t.tile % MAP, y = (t.tile / MAP) | 0;
       G.reserved.delete(t.tile);
       G.stump[t.tile] = 0;
       if (plantable(x, y) && G.money >= TOOLS.plant.cost) {
         G.money -= TOOLS.plant.cost; G.stats.spent += TOOLS.plant.cost;
-        addTree(x, y, G.plantSpecies, 0.2); G.plantMark[t.tile] = 0; G.stats.planted++;
+        addTree(x, y, G.plantSpecies, 0.2); G.plantMark[t.tile] = 0; G.stats.planted++; gainXp(w, 1);
         markDirty(x, y, x, y);
       }
       break;
@@ -915,7 +928,7 @@ function updateWorker(w, dt) {
   const n = w.needs, P_ = PERSONALITIES[w.pers];
   const hours = dt * MIN_PER_SEC / 60;
   if (w.state !== 'sleep') n.energy -= hours * 3.6 * (P_.sleep || 1);
-  n.hydration -= hours * 5; n.bladder += hours * 5.5;
+  n.hydration -= hours * 3.5; n.bladder += hours * 4;
   n.energy = clamp(n.energy, 0, 100); n.hydration = clamp(n.hydration, 0, 100); n.bladder = clamp(n.bladder, 0, 100);
 
   if (w.state === 'idle') { w.cool -= dt; if (w.cool <= 0) think(w); }
@@ -934,7 +947,7 @@ function updateWorker(w, dt) {
       if (!G.bmap.has(b.id)) { cancelTask(w); return; }
       b.dur = Math.min(100, b.dur + dt * 14 * workSpeed(w) / (P_.wear || 1));
       if (Math.random() < dt * 2) G.fx.push({ k: 'spark', x: isoX(w.x, w.y) + rf(-4, 4), y: isoY(w.x, w.y) - 10, vx: rf(-10, 10), vy: rf(-20, -8), life: 0.4 });
-      if (b.dur >= 100) { b.broken = false; b.res = 0; w.thought = 'Good as new.'; w.task = null; w.state = 'idle'; w.cool = 0.5; }
+      if (b.dur >= 100) { b.broken = false; b.res = 0; w.thought = 'Good as new.'; w.task = null; w.state = 'idle'; w.cool = 0.5; gainXp(w, 3); }
       return;
     }
     w.timer -= dt;

@@ -4,6 +4,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<!-- digits only: Pixelify's 2, 5 and 7 are hard to read, so numbers come from Jersey 10 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&text=0123456789&display=swap">
 <style>
 /* Layout: full-bleed isometric canvas; HUD panels pinned to the corners like a management sim. Single dark look. */
 :root {
@@ -25,12 +27,12 @@
   --role-ar: #4f9a3c;
   --paper: #efe2c4;
   --paper-ink: #3a2a1e;
-  --font: "Pixelify Sans", ui-monospace, "Cascadia Mono", Menlo, monospace;
+  --font: "Jersey 10", "Pixelify Sans", ui-monospace, "Cascadia Mono", Menlo, monospace;
   color-scheme: dark;
 }
 html, body { height: 100%; }
 [hidden] { display: none !important; }
-body { background: var(--sky); color: var(--ink); font-family: var(--font); font-size: 15px; font-variant-ligatures: none; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+body { background: var(--sky); color: var(--ink); font-family: var(--font); font-size: 15px; font-variant-ligatures: none; font-size-adjust: cap-height 0.64; /* lifts Jersey 10 digits to Pixelify's capital height */ overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 #view { position: fixed; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
