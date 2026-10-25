@@ -69,6 +69,9 @@ function boot() {
   $('#btn-start').addEventListener('click', startNew);
   $('#btn-continue').addEventListener('click', continueFromAutoSave);
   setupTitle();
+  // browsers only allow sound after the player interacts with the page
+  window.addEventListener('pointerdown', audioStart, true);
+  window.addEventListener('keydown', audioStart, true);
   // autosave when the player leaves or switches away
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autoSave(); });
   window.addEventListener('pagehide', autoSave);
@@ -88,6 +91,7 @@ function frame(now) {
   if (!playing) { R.cam.x += dt * 5; if (R.cam.x > MAP * HTW * 0.6) R.cam.x = -MAP * HTW * 0.6; }
   if (G.speed) UI.lastSpeed = G.speed;
   updateFx(dt);
+  updateAmbience(dt, playing);
   panKeys(dt);
   render(now);
   uiAcc += dt;

@@ -304,7 +304,7 @@ function drawWorker(ctx, w, sx, sy, time) {
   if (w.carry) spr(ctx, ART.items.log, x, y - 14);
   const t = w.task;
   if (w.state === 'act' && t && t.type === 'chop') { // axe swing
-    const up = Math.sin(time * 10) > 0, dir = w.flip ? -1 : 1;
+    const up = (w.swing || 0) < 0.4, dir = w.flip ? -1 : 1;
     ctx.fillStyle = '#94673f';
     if (up) { ctx.fillRect(x + dir * 4, y - 15, 1, 6); ctx.fillStyle = '#cfd4d8'; ctx.fillRect(x + dir * 4 - (dir < 0 ? 2 : 0), y - 16, 3, 2); }
     else { ctx.fillRect(dir > 0 ? x + 4 : x - 8, y - 9, 5, 1); ctx.fillStyle = '#cfd4d8'; ctx.fillRect(dir > 0 ? x + 8 : x - 9, y - 11, 2, 3); }

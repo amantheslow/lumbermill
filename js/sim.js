@@ -275,6 +275,7 @@ function revealCircle(cx, cy, r) {
 // ---------- secrets ----------
 function discoverSecret(s) {
   s.found = true;
+  sfx('secret', s.x + 0.5, s.y + 0.5);
   if (s.kind === 'ancient') {
     s.done = true; G.stats.secrets++;
     letter('Forestry Board', 'You found the Ancient Oak',
@@ -285,6 +286,7 @@ function discoverSecret(s) {
 function collectSecret(s) {
   if (s.done) return;
   s.done = true; G.stats.secrets++;
+  sfx('secret');
   if (s.kind === 'chest') {
     const n = ri(350, 800); money(n, s.x, s.y);
     letter('Mill Ledger', 'A buried strongbox', `Your crew prised open a rusted strongbox and found ${fmt(n)} in old coins. Finders keepers.`, 'good');
@@ -337,7 +339,7 @@ function placeBuilding(type, x, y, free = false) {
     if (G.tiles[k] === 2) G.tiles[k] = 1;
   }
   markDirty(x - 1, y - 1, x + d.w, y + d.h);
-  if (!free) fxText(x + d.w / 2, y + d.h / 2, '-' + fmt(d.cost), '#ff8a7a');
+  if (!free) { fxText(x + d.w / 2, y + d.h / 2, '-' + fmt(d.cost), '#ff8a7a'); sfx('build', x + d.w / 2, y + d.h / 2); }
   return b;
 }
 // create a building record, claim its tiles and work out the tiles around it
@@ -411,6 +413,7 @@ function placeBelt(x, y, dir) {
   if (!spend(TOOLS.belt.cost, 'a conveyor')) return false;
   const b = { x, y, dir, item: null, p: 0, stamp: 0 };
   G.belt[k] = b; G.belts.push(b); G.stump[k] = 0; G.plantMark[k] = 0;
+  sfx('place', x + 0.5, y + 0.5);
   return true;
 }
 function removeBelt(x, y) {
@@ -515,6 +518,7 @@ function wear(b, amt) {
   b.dur = Math.max(0, b.dur - amt);
   if (!b.broken && (b.dur <= 0 || (b.dur < 25 && chance(0.0008)))) {
     b.broken = true;
+    sfx('clank', b.x + b.w / 2, b.y + b.h / 2);
     toast(`${BDEF[b.type].name} has broken down. A mechanic needs to fix it.`, 'bad');
     if (!G.workers.some(w => w.role === 'mechanic')) letter('Mill Ledger', `Your ${BDEF[b.type].name.toLowerCase()} broke down`, `The machine has seized up and nobody on site knows how to fix it. Hire a Mechanic from the Staff tab, and they'll keep your machines running.`, 'bad');
   }
@@ -542,7 +546,7 @@ function updateMachines(dt) {
     }
     if (b.type === 'intake' && b.stock > 0) { if (pushOut(b, 'log')) b.stock--; }
     if (b.out.length && pushOut(b, b.out[0])) b.out.shift();
-    if (b.saleText && (b.saleT = (b.saleT || 0) + dt) > 1.2) { fxText(b.x + 1, b.y + 1, '+' + fmt(b.saleText), '#f3c11b'); b.saleText = 0; b.saleT = 0; }
+    if (b.saleText && (b.saleT = (b.saleT || 0) + dt) > 1.2) { fxText(b.x + 1, b.y + 1, '+' + fmt(b.saleText), '#f3c11b'); sfx('coin', b.x + 1, b.y + 1); b.saleText = 0; b.saleT = 0; }
   }
 }
 
@@ -654,6 +658,7 @@ function gainXp(w, n) {
     w.thought = 'I\'m getting good at this. A raise would be nice.';
     fxText(w.x, w.y, 'Level up!', '#9fe39a');
     toast(`${w.name} reached level ${w.level}. They work faster, and will expect better pay.`, 'good');
+    sfx('level');
   }
 }
 function fireWorker(w) {
@@ -904,6 +909,7 @@ function finishAct(w) {
         G.stump[idx(tr.x, tr.y)] = tr.dead ? 0 : 1;
         if (n > 0) { w.carry = { type: 'log', n: (w.carry ? w.carry.n : 0) + n }; G.stats.logsCut += n; }
         for (let i = 0; i < 6; i++) fxChips(tr.x + 0.5, tr.y + 0.5);
+        if (!tr.dead) sfx('fall', tr.x + 0.5, tr.y + 0.5);
         gainXp(w, 1);
       }
       break;
@@ -915,7 +921,7 @@ function finishAct(w) {
       G.stump[t.tile] = 0;
       if (plantable(x, y) && G.money >= TOOLS.plant.cost) {
         G.money -= TOOLS.plant.cost; G.stats.spent += TOOLS.plant.cost;
-        addTree(x, y, G.plantSpecies, 0.2); G.plantMark[t.tile] = 0; G.stats.planted++; gainXp(w, 1);
+        addTree(x, y, G.plantSpecies, 0.2); G.plantMark[t.tile] = 0; G.stats.planted++; gainXp(w, 1); sfx('plant', x + 0.5, y + 0.5);
         markDirty(x, y, x, y);
       }
       break;
@@ -939,6 +945,8 @@ function updateWorker(w, dt) {
       const tr = t.tree;
       if (G.tree[idx(tr.x, tr.y)] !== tr) { cancelTask(w); return; }
       tr.shake = 0.15;
+      w.swing = (w.swing || 0) + dt;
+      if (w.swing > 0.62) { w.swing = 0; sfx('chop', tr.x + 0.5, tr.y + 0.5); }
       w.flip = isoX(tr.x + 0.5, tr.y + 0.5) < isoX(w.x, w.y); w.back = (tr.x + tr.y) < (w.x + w.y - 1);
       if (Math.random() < dt * 3) fxChips(tr.x + 0.5, tr.y + 0.5);
     }
@@ -1136,6 +1144,7 @@ function completeContract(c) {
   G.rep = Math.min(10, G.rep + 1); G.stats.contracts++;
   letter(c.company, 'Delivery received, payment enclosed', `All ${c.qty} ${ITEMS[c.item].name.toLowerCase()} arrived in good order. Please find ${fmt(v)} enclosed. We'll think of you next time.`, 'good');
   toast(`Contract complete: +${fmt(v)}`, 'good');
+  sfx('cash');
 }
 function startResearch(r) {
   if (G.research.active) { toast('Your foreman is already researching something.', 'bad'); return; }
@@ -1175,6 +1184,7 @@ function simStep(dt) {
       G.research.done.push(r.id); G.research.active = null;
       letter('Mill Ledger', `Research complete: ${r.name}`, `${r.desc}`, 'good');
       toast(`Research complete: ${r.name}`, 'good');
+      sfx('level');
     }
   }
   updatePower(dt);

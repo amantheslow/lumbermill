@@ -538,6 +538,9 @@ function buildIcons() {
   I.tree = iconCanvas(b => { b.poly([[8, 1], [13, 9], [3, 9]], C('#5bb75f')); b.poly([[8, 4], [14, 13], [2, 13]], C('#3f9b49')); b.rect(7, 13, 2, 2, C('#7a5a3a')); });
   I.people = iconCanvas(b => { b.ellipse(5, 5, 2.5, 2.5, cream); b.rect(2, 9, 6, 5, cream); b.ellipse(11, 4, 2.5, 2.5, C('#c9b9a0')); b.rect(8, 8, 6, 6, C('#c9b9a0')); });
   I.coin = iconCanvas(b => { b.ellipse(8, 8, 6.5, 6.5, C('#f3c11b')); b.ellipse(8, 8, 4.5, 4.5, C('#d9a10f')); b.rect(7, 5, 2, 6, C('#f6d65a')); });
+  const speaker = (b) => { b.rect(2, 6, 3, 4, cream); b.poly([[5, 6], [9, 2], [9, 14], [5, 10]], cream); };
+  I.soundOn = iconCanvas(b => { speaker(b); b.rect(11, 5, 1, 6, cream); b.rect(13, 3, 1, 10, cream); });
+  I.soundOff = iconCanvas(b => { speaker(b); b.line(11, 5, 15, 10, red); b.line(15, 5, 11, 10, red); });
   I.research = iconCanvas(b => { b.rect(6, 1, 4, 5, cream); b.poly([[6, 6], [10, 6], [14, 14], [2, 14]], cream); b.poly([[4.5, 10], [11.5, 10], [14, 14], [2, 14]], C('#5bb75f')); });
   return I;
 }

@@ -39,6 +39,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 
 // ---------- toasts ----------
 function toast(msg, kind = 'info') {
+  if (kind === 'bad') sfx('bad');
   const el = document.createElement('div');
   el.className = 'toast ' + kind; el.textContent = msg;
   const box = $('#toasts'); box.prepend(el);
@@ -46,7 +47,7 @@ function toast(msg, kind = 'info') {
   setTimeout(() => el.classList.add('out'), 4200);
   setTimeout(() => el.remove(), 4800);
 }
-function onLetter() { updateHud(); }
+function onLetter() { updateHud(); sfx('letter'); }
 
 // ---------- helpers ----------
 function face(v) { return v >= 66 ? 'good' : v >= 36 ? 'ok' : 'bad'; }
@@ -72,6 +73,12 @@ function spriteThumb(type) {
 function buildHud() {
   const I = ART.icons;
   $('#money-ico').src = I.coin;
+  const soundIcon = () => { $('#chip-sound img').src = AUD.muted ? I.soundOff : I.soundOn; $('#chip-sound').setAttribute('aria-label', AUD.muted ? 'Turn sound on' : 'Turn sound off'); $('#chip-sound').title = (AUD.muted ? 'Sound is off' : 'Sound is on') + ' (N)'; };
+  UI.toggleSound = () => { audioStart(); setMuted(!AUD.muted); soundIcon(); };
+  $('#chip-sound').addEventListener('click', UI.toggleSound);
+  soundIcon();
+  // soft click for interface buttons
+  document.addEventListener('click', e => { if (e.target.closest('button')) sfx('click'); }, true);
   $('#chip-forest img').src = I.tree; $('#chip-power img').src = I.power; $('#chip-staff img').src = I.people; $('#chip-letters img').src = I.letter;
   $('#chip-research img').src = I.research;
   const tb = $('#toolbar');
@@ -547,6 +554,7 @@ function initInput() {
     if (k === 'shift' && (UI.tool === 'chop' || UI.tool === 'plant')) { UI.unmark = true; updateHint(); }
     const map = { v: 'select', '1': 'camp', '2': 'factory', '3': 'power', c: 'belt', f: 'chop', p: 'plant', t: 'path', b: 'bulldoze', x: 'survey', m: 'mill' };
     if (map[k] && !e.ctrlKey && !e.metaKey) pickTool(map[k]);
+    if (k === 'n' && !e.ctrlKey && !e.metaKey) UI.toggleSound();
     if (k === '=' || k === '+' || k === 'e') setZoom(R.cam.s + 1);
     if (k === '-' || k === 'q') setZoom(R.cam.s - 1);
   });
@@ -623,6 +631,7 @@ function applyTool() {
       if (G.tree[k]) continue;
       if (!spend(TOOLS.path.cost, 'a path')) break;
       G.tiles[k] = 2; G.stump[k] = 0; G.plantMark[k] = 0; markDirty(x, y, x, y); n++;
+      sfx('place', x + 0.5, y + 0.5);
     }
   } else if (tool === 'chop') {
     for (const [x, y] of tiles) { if (!inMap(x, y)) continue; const t = G.tree[idx(x, y)]; if (t && t.sp !== 'ancient' && G.reveal[idx(x, y)] && treeStage(t) !== 'sapling') { t.mark = !UI.unmark; n++; } }

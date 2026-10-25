@@ -12,6 +12,7 @@ Open `index.html` through any static web server (for example `python3 -m http.se
 - **Power.** Steam engines burn logs and solar arrays work by day. Power poles carry power to machines.
 - **Business.** Market prices drift over time, and a rival mill undercuts you. Companies offer trade contracts, which you can negotiate once you've researched Advanced Trade. Letters arrive from the Forestry Board, your ledger and your customers.
 - **Forest health.** The board fines a mill that strips its forest, so you have to balance felling against replanting.
+- **Sound.** Every sound is synthesised in the browser, with no audio files: axes, falling trees, saws, steam engines, the campfire, coins, birds by day and crickets at night. Sounds come from where they happen on screen. N or the speaker button turns sound off.
 - **Research.** Nine unlocks, including carpentry, campsite comforts, new sapling species, faster conveyors, reinforced machines, solar and advanced trade.
 
 ## Saving
@@ -34,6 +35,7 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 | Mill Ledger (staff, hiring, research, trade, letters, policies) | M |
 | Pause | Space |
 | Save to file | Ctrl+S / Cmd+S |
+| Sound on or off | N |
 | Cancel | Esc or right-click |
 
 ## Code layout
@@ -41,6 +43,7 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 | File | Contents |
 | --- | --- |
 | `js/core.js` | RNG, noise, isometric maths, a small pixel rasteriser |
+| `js/audio.js` | Synthesised sound effects and ambience (Web Audio) |
 | `js/art.js` | Procedural pixel art for trees, buildings, workers, conveyors, items and icons |
 | `js/sim.js` | World generation, forest lifecycle, buildings, conveyors, power, staff AI and the economy |
 | `js/render.js` | Isometric renderer: cached ground, depth-sorted sprites, day/night lighting |
