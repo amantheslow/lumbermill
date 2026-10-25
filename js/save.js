@@ -25,14 +25,14 @@ function serializeGame() {
     grids: { tiles: bytesToB64(G.tiles), reveal: bytesToB64(G.reveal), stump: bytesToB64(G.stump), plantMark: bytesToB64(G.plantMark) },
     secrets: G.secrets,
     trees: G.trees.map(t => ({ x: t.x, y: t.y, sp: t.sp, age: t.age, maxAge: t.maxAge, v: t.v, sick: t.sick, dead: t.dead, fallen: t.fallen, deadDays: t.deadDays, mark: t.mark, fire: t.fire || 0, charred: !!t.charred, secret: t.secret ? G.secrets.indexOf(t.secret) : -1 })),
-    buildings: G.buildings.map(b => ({ id: b.id, type: b.type, x: b.x, y: b.y, inv: b.inv, out: b.out, prog: b.prog, recipe: b.recipe, dur: b.dur, broken: b.broken, fuel: b.fuel, stock: b.stock, v: b.v, outIdx: b.outIdx, made: b.made, burn: b.burn || 0 })),
+    buildings: G.buildings.map(b => ({ id: b.id, type: b.type, x: b.x, y: b.y, inv: b.inv, out: b.out, prog: b.prog, recipe: b.recipe, dur: b.dur, broken: b.broken, fuel: b.fuel, stock: b.stock, v: b.v, outIdx: b.outIdx, made: b.made, burn: b.burn || 0, lvl: b.lvl || 1, dir: b.dir || 0, filter: b.filter || null, byOn: !!b.byOn })),
     belts: G.belts.map(b => ({ x: b.x, y: b.y, dir: b.dir, item: b.item, p: b.p })),
     workers: G.workers.map(w => ({ id: w.id, name: w.name, role: w.role, pers: w.pers, level: w.level, pay: w.pay, skill: w.skill, ap: w.ap, x: w.x, y: w.y, carry: w.carry, needs: w.needs, mood: w.mood, low: w.low, rogue: w.rogue, rogueDays: w.rogueDays || 0, thought: w.thought, home: w.home, xp: w.xp })),
     candidates: G.candidates, candDay: G.candDay,
     letters: G.letters, offers: G.offers, contracts: G.contracts,
     research: G.research, market: G.market, policy: G.policy, stats: G.stats,
     goals: G.goals.filter(g => g.done).map(g => g.id), tutor: G.tutor, tutorialOff: G.tutorialOff,
-    initialForest: G.initialForest, health: G.health, warned: G.warned, rivalFlood: G.rivalFlood, lowCash: G.lowCash, story: G.story,
+    initialForest: G.initialForest, health: G.health, warned: G.warned, rivalFlood: G.rivalFlood, lowCash: G.lowCash, story: G.story, rank: G.rank,
     camera: { x: R.cam.x, y: R.cam.y, s: R.cam.s },
   };
 }
@@ -70,7 +70,8 @@ function cleanLetter(l) {
   }
   return out;
 }
-function cleanDeal(o) { return { story: ['bridge', 'hall'].includes(o.story) ? o.story : undefined, id: int(o.id), company: str(o.company, 'A customer', 60), item: oneOf(o.item, ITEMS, 'log'), qty: clamp(int(o.qty, 1), 1, 10000), price: Math.max(0, num(o.price)), days: Math.max(1, int(o.days, 5)), expires: int(o.expires), negotiated: !!o.negotiated, deadline: int(o.deadline), delivered: Math.max(0, int(o.delivered)) }; }
+const STORY_DEALS = ['bridge', 'hall', ...COMMISSIONS.map(c => c.key)];
+function cleanDeal(o) { return { story: STORY_DEALS.includes(o.story) ? o.story : undefined, id: int(o.id), company: str(o.company, 'A customer', 60), item: oneOf(o.item, ITEMS, 'log'), qty: clamp(int(o.qty, 1), 1, 10000), price: Math.max(0, num(o.price)), days: Math.max(1, int(o.days, 5)), expires: int(o.expires), negotiated: !!o.negotiated, deadline: int(o.deadline), delivered: Math.max(0, int(o.delivered)) }; }
 
 function restoreGame(d) {
   if (!d || typeof d !== 'object' || d.format !== SAVE_FORMAT) throw new SaveError('That file is not a Heartwood Mill save.');
@@ -106,9 +107,10 @@ function restoreGame(d) {
       const nb = addBuilding(type, x, y, id);
       for (let j = 0; j < def.h; j++) for (let i = 0; i < def.w; i++) { const k = idx(x + i, y + j); if (G.tree[k]) removeTree(x + i, y + j); }
       Object.assign(nb, {
-        inv: cleanCounts(b.inv), out: arr(b.out).filter(it => ITEMS[it]).slice(0, 20), prog: clamp(num(b.prog), 0, 1),
+        inv: cleanCounts(b.inv), out: arr(b.out).filter(it => ITEMS[it]).slice(0, Math.max(20, def.cap || 0)), prog: clamp(num(b.prog), 0, 1),
         recipe: def.recipes ? (def.recipes.includes(b.recipe) ? b.recipe : def.recipes[0]) : null,
-        dur: clamp(num(b.dur, 100), 0, 100), broken: !!b.broken, fuel: clamp(int(b.fuel), 0, 50), stock: clamp(int(b.stock), 0, 30),
+        dur: clamp(num(b.dur, 100), 0, 100), broken: !!b.broken, fuel: clamp(int(b.fuel), 0, 50), stock: clamp(int(b.stock), 0, 40),
+        lvl: def.recipes ? clamp(int(b.lvl, 1), 1, 3) : 1, dir: clamp(int(b.dir), 0, 3), filter: ITEMS[b.filter] ? b.filter : null, byOn: !!b.byOn,
         v: clamp(int(b.v), 0, 2), outIdx: Math.max(0, int(b.outIdx)) % Math.max(1, nb.perim.length), made: Math.max(0, int(b.made)), burn: clamp(num(b.burn), 0, 1),
       });
     }
@@ -133,7 +135,7 @@ function restoreGame(d) {
         mood: { overall: 60, physical: 60, mental: 60, pay: clamp(num(m.pay, 60), 0, 100), morale: clamp(num(m.morale, 65), 0, 100), colleagues: clamp(num(m.colleagues, 70), 0, 100) },
         carry: carry.type === 'log' && int(carry.n) > 0 ? { type: 'log', n: clamp(int(carry.n), 1, 8) } : null,
         low: Math.max(0, num(w0.low)), rogue: !!w0.rogue, rogueDays: Math.max(0, int(w0.rogueDays)), thought: str(w0.thought, 'Back to work.', 200),
-        home: G.bmap.has(int(w0.home)) && /^(tent|cabin)$/.test(G.bmap.get(int(w0.home)).type) ? int(w0.home) : null, xp: Math.max(0, int(w0.xp)),
+        home: G.bmap.has(int(w0.home)) && BDEF[G.bmap.get(int(w0.home)).type].beds ? int(w0.home) : null, xp: Math.max(0, int(w0.xp)),
       });
       updateMood(w, 0);
     }
@@ -177,6 +179,9 @@ function restoreGame(d) {
     G.story.ended = !!so.ended;
     const fl = obj(so.flags);
     G.story.flags = { rival: ['refuse', 'truce'].includes(fl.rival) ? fl.rival : undefined, bridge: !!fl.bridge, hall: !!fl.hall, fireStarted: !!fl.fireStarted };
+    for (const c of COMMISSIONS) G.story.flags[c.key] = !!fl[c.key];
+    // saves from before mill ranks start at the bottom, so the first rank letter explains what has opened up
+    G.rank = clamp(int(d.rank), 0, RANKS.length - 1);
     if (!G.secrets.some(s => s.kind === 'journal')) placeJournalSecrets();
     G.health = int(d.health, 100); G.warned = int(d.warned, 100); G.lowCash = int(d.lowCash);
     const rf_ = obj(d.rivalFlood);

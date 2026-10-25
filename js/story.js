@@ -72,6 +72,10 @@ const EXTRAS = [ // free play, after the story
   { id: 'x_secrets', text: 'Find every secret in the forest', reward: 1000, test: () => G.secrets.every(s => s.done) },
   { id: 'x_rich', text: 'Bank 25,000 coins', reward: 0, test: () => G.money >= 25000 },
   { id: 'x_crew', text: 'Run a crew of 10', reward: 500, test: () => G.workers.length >= 10 },
+  { id: 'x_rank', text: `Become the ${RANKS[RANKS.length - 1].name}`, reward: 2000, test: () => rankOf() >= RANKS.length - 1 },
+  { id: 'x_power', text: 'Make 100 power at once', reward: 800, test: () => G.nets.reduce((s, n) => s + (n.supply || 0), 0) >= 100 },
+  { id: 'x_mk3', text: 'Tune a machine to Mk III', reward: 600, test: () => G.buildings.some(b => b.lvl >= 3) },
+  { id: 'x_kits', text: 'Ship a cabin kit', reward: 1500, test: () => (G.stats.sold.kit || 0) + (G.story.flags.settlers ? 1 : 0) >= 1 },
 ];
 
 function newStory() { return { chapter: 1, done: [], flags: {}, journal: 0, daysIn: 0, fireAt: null, ended: false }; }
@@ -114,17 +118,49 @@ function checkStory() {
 }
 
 // ---------- contracts the story asks for ----------
-function addStoryContract(key, item, qty, price, days) {
-  G.contracts.push({ id: ++G.uid, company: TOWN, item, qty, price, days, expires: dayOf() + 99, negotiated: true, deadline: dayOf() + days, delivered: 0, story: key });
+function addStoryContract(key, item, qty, price, days, company = TOWN) {
+  G.contracts.push({ id: ++G.uid, company, item, qty, price, days, expires: dayOf() + 99, negotiated: true, deadline: dayOf() + days, delivered: 0, story: key });
 }
 function storyContractDone(c) {
   G.story.flags[c.story] = true;
   if (c.story === 'bridge') letter(MAYOR, 'The bridge is open', 'The last plank went in this morning and the whole town walked across it. Thank you. Fernhollow will remember this.\n\nCome to the opening fair if you can ever leave that mill of yours.', 'good');
   if (c.story === 'hall') letter(MAYOR, 'The town hall is furnished', 'The council sat at your tables for the first time today. Somebody carved a little tree into the leg of the mayor\'s chair. I am choosing to believe that was you.', 'good');
+  const cm = COMMISSIONS.find(k => k.key === c.story);
+  if (cm) letter(cm.company, cm.thanks[0], cm.thanks[1], 'good');
 }
 function storyContractLate(c) { // the town is patient: it asks again rather than suing
   c.deadline = dayOf() + 8;
-  letter(TOWN, 'Still hoping for those ' + ITEMS[c.item].name.toLowerCase(), `We have ${c.delivered} of the ${c.qty} ${ITEMS[c.item].name.toLowerCase()} so far. The council has agreed to wait another 8 days. Please do what you can.`, 'story');
+  letter(c.company || TOWN, 'Still hoping for those ' + ITEMS[c.item].name.toLowerCase(), `We have ${c.delivered} of the ${c.qty} ${ITEMS[c.item].name.toLowerCase()} so far. The council has agreed to wait another 8 days. Please do what you can.`, 'story');
+}
+
+// ---------- mill ranks and the big commissions that come with them ----------
+// commissions are patient like the town: a late one is extended rather than cancelled
+const COMMISSIONS = [
+  { rank: 2, key: 'rail', company: 'Ridgeway Rail Co.', item: 'beam', qty: 30, price: 58, days: 24,
+    ask: ['A station for Fernhollow', 'The new branch line will stop at Fernhollow, and the station roof needs 30 good beams. We hear your mill is the one to ask.\n\nIf you have not got a Beam Saw yet, Beam Saws are on your research list now. We can wait a while.'],
+    thanks: ['The station is roofed', 'The first train pulled in under your beams this morning. The driver blew the whistle twice, which I am told is a compliment.'] },
+  { rank: 3, key: 'school', company: 'Fernhollow School Board', item: 'cabinet', qty: 8, price: 330, days: 30,
+    ask: ['Cabinets for the new school', 'Fernhollow has children again, and the new schoolhouse needs 8 sturdy cabinets for books and slates.\n\nA Joinery makes them from seasoned boards and beams. Research Joinery once you have Drying Kilns and Beam Saws.'],
+    thanks: ['The school is open', 'Thirty-one children, eight cabinets, and not one of them has managed to break a door yet. Thank you.'] },
+  { rank: 4, key: 'settlers', company: 'Coastal Settlers\' Union', item: 'kit', qty: 3, price: 980, days: 36,
+    ask: ['Homes on the coast', 'Families are moving to the coast faster than we can house them. We would like 3 cabin kits from your Joinery: beams and boards, cut and numbered, ready to raise.\n\nResearch Cabin Kits to make them.'],
+    thanks: ['Three new homes', 'Three families slept under their own roofs last night. One of them has named their daughter after your mill. We did try to talk them out of it.'] },
+];
+function rankUp(r) {
+  const was = G.rank;
+  G.rank = r;
+  if (r <= was) return;
+  const opened = RESEARCH.filter(x => (x.rank || 0) > was && (x.rank || 0) <= r).map(x => x.name);
+  const bonus = r * 500;
+  money(bonus);
+  letter('Valley Timber Guild', `Your mill is now a ${RANKS[r].name}`, `Congratulations. Your sales have made you a ${RANKS[r].name} in the eyes of the Guild, and here is ${fmt(bonus)} towards the next step.${opened.length ? `\n\nNew research is open to you: ${opened.join(', ')}.` : ''}${r < RANKS.length - 1 ? `\n\nSell ${fmt(RANKS[r + 1].need)} in all to become a ${RANKS[r + 1].name}.` : '\n\nThere is no higher rank. The Guild has run out of titles.'}`, 'good');
+  toast(`Mill rank: ${RANKS[r].name}!`, 'good');
+  sfx('level');
+  for (const cm of COMMISSIONS) {
+    if (cm.rank > r || cm.rank <= was || G.story.flags[cm.key] || G.contracts.some(c => c.story === cm.key)) continue;
+    addStoryContract(cm.key, cm.item, cm.qty, cm.price, cm.days, cm.company);
+    letter(cm.company, cm.ask[0], cm.ask[1], 'story');
+  }
 }
 
 // ---------- letters that ask for an answer ----------
@@ -177,10 +213,11 @@ function igniteForest(story) {
   const t = pick(cands);
   t.fire = 0.01;
   G.story.flags.fireStarted = true;
-  G.story.spotAt = G.t + 10 * MIN_PER_SEC; // the crew notices the smoke about ten seconds later
+  const seen = G.buildings.some(b => b.type === 'lookout' && dist(b.x, b.y, t.x, t.y) <= 18);
+  G.story.spotAt = G.t + (seen ? 0 : 10 * MIN_PER_SEC); // without a lookout, the crew notices the smoke about ten seconds later
   if (G.speed > 1) setSpeed(1);
   sfx('clank');
-  letter('Mill Ledger', 'Fire in the forest!', 'Smoke over the trees. Every free hand is heading for it. The red flame button at the top right takes you there.\n\nA well near the fire lets the crew douse it faster.', 'bad');
+  letter('Mill Ledger', 'Fire in the forest!', `${seen ? 'The lookout rang the bell the moment it started.' : 'Smoke over the trees.'} Every free hand is heading for it. The red flame button at the top right takes you there.\n\nA well near the fire lets the crew douse it faster, and a Lookout Tower spots fires the moment they start.`, 'bad');
   toast('Fire in the forest! Your crew is heading for it.', 'bad');
   if (!story) G.story.flags.lastFire = dayOf();
 }

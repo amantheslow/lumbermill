@@ -11,31 +11,60 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const ITEMS = {
   log: { name: 'Logs', one: 'log', base: 12 },
   plank: { name: 'Planks', one: 'plank', base: 8 },
+  sawdust: { name: 'Sawdust', one: 'sack of sawdust', base: 2 },
+  pellet: { name: 'Fuel Pellets', one: 'bag of pellets', base: 15 },
+  board: { name: 'Seasoned Boards', one: 'seasoned board', base: 19 },
+  beam: { name: 'Beams', one: 'beam', base: 34 },
   crate: { name: 'Crates', one: 'crate', base: 34 },
   chair: { name: 'Chairs', one: 'chair', base: 52 },
   table: { name: 'Tables', one: 'table', base: 120 },
+  cabinet: { name: 'Cabinets', one: 'cabinet', base: 210 },
+  kit: { name: 'Cabin Kits', one: 'cabin kit', base: 640 },
 };
+// by: a by-product, made only once its research (byReq) is done
 const RECIPES = {
-  plank: { name: 'Planks', in: { log: 1 }, out: 'plank', n: 3, time: 4 },
+  plank: { name: 'Planks', in: { log: 1 }, out: 'plank', n: 3, time: 4, by: 'sawdust', byReq: 'sawdust' },
   crate: { name: 'Crate', in: { plank: 3 }, out: 'crate', n: 1, time: 5 },
   chair: { name: 'Chair', in: { plank: 4 }, out: 'chair', n: 1, time: 7 },
   table: { name: 'Table', in: { plank: 7 }, out: 'table', n: 1, time: 11, req: 'fine' },
+  board: { name: 'Seasoned Boards', in: { plank: 2 }, out: 'board', n: 2, time: 6 },
+  beam: { name: 'Beam', in: { log: 1 }, out: 'beam', n: 1, time: 5 },
+  pellet: { name: 'Fuel Pellets', in: { sawdust: 4 }, out: 'pellet', n: 1, time: 4 },
+  cabinet: { name: 'Cabinet', in: { board: 3, beam: 1 }, out: 'cabinet', n: 1, time: 12 },
+  kit: { name: 'Cabin Kit', in: { board: 6, beam: 4 }, out: 'kit', n: 1, time: 20, req: 'kits' },
 };
+// cat: which build menu it sits in. water: must touch open water. cap: how many items it holds
 const BDEF = {
   hq: { name: 'Mill Office', w: 3, h: 3, cost: 0, desc: 'Your office. Lumberjacks sell logs here if there is nowhere better to take them.' },
   tent: { name: 'Tent', cat: 'camp', w: 1, h: 1, cost: 120, beds: 2, desc: 'Sleeps two. Staff without a bed sleep rough and get grumpy.' },
-  cabin: { name: 'Cabin', cat: 'camp', w: 2, h: 2, cost: 700, beds: 4, req: 'comforts', desc: 'Sleeps four in comfort. Better rest and morale than a tent.' },
+  cabin: { name: 'Cabin', cat: 'camp', w: 2, h: 2, cost: 700, beds: 4, rest: 16, req: 'comforts', desc: 'Sleeps four in comfort. Better rest and morale than a tent.' },
+  bunkhouse: { name: 'Bunkhouse', cat: 'camp', w: 3, h: 2, cost: 1500, beds: 8, rest: 15, req: 'bunk', desc: 'Sleeps eight. The way to house a big crew.' },
   well: { name: 'Well', cat: 'camp', w: 1, h: 1, cost: 180, desc: 'Fresh water for thirsty staff.' },
   outhouse: { name: 'Outhouse', cat: 'camp', w: 1, h: 1, cost: 100, desc: 'Better than the bushes.' },
   campfire: { name: 'Campfire', cat: 'camp', w: 1, h: 1, cost: 60, desc: 'Staff gather here in the evening. Lifts morale and lights the night.' },
   flowers: { name: 'Flower Bed', cat: 'camp', w: 1, h: 1, cost: 80, req: 'comforts', desc: 'A little colour. Small morale boost for everyone.' },
+  cookhouse: { name: 'Cookhouse', cat: 'camp', w: 2, h: 2, cost: 900, req: 'comforts', desc: 'Hot meals. Staff stop by when they are tired, and everyone\'s morale goes up.' },
+  lookout: { name: 'Lookout Tower', cat: 'camp', w: 1, h: 1, cost: 350, desc: 'Maps the forest for 13 tiles around it, and spots any fire within 18 tiles the moment it starts.' },
+  nursery: { name: 'Tree Nursery', cat: 'camp', w: 2, h: 2, cost: 900, req: 'nursery', desc: 'Grows saplings for your arborists. Planting costs half as much, and saplings start out older.' },
   intake: { name: 'Log Drop', cat: 'factory', w: 1, h: 1, cost: 100, desc: 'Lumberjacks drop logs here. Pushes logs onto any conveyor leading away.' },
   sawmill: { name: 'Sawmill', cat: 'factory', w: 2, h: 2, cost: 700, power: 10, machine: true, recipes: ['plank'], desc: 'Saws 1 log into 3 planks. Needs power.' },
   workshop: { name: 'Workshop', cat: 'factory', w: 2, h: 2, cost: 1300, power: 6, machine: true, req: 'carpentry', recipes: ['crate', 'chair', 'table'], desc: 'Crafts planks into crates, chairs and tables. Needs power.' },
   depot: { name: 'Trade Depot', cat: 'factory', w: 2, h: 2, cost: 450, desc: 'Sells anything a conveyor brings it. Fills trade contracts first.' },
-  steam: { name: 'Steam Engine', cat: 'power', w: 2, h: 2, cost: 800, gen: 30, machine: true, desc: 'Burns logs to make 30 power. Feed it by conveyor or let lumberjacks top it up.' },
+  kiln: { name: 'Drying Kiln', cat: 'factory', w: 2, h: 2, cost: 1100, power: 8, machine: true, req: 'kiln', recipes: ['board'], desc: 'Dries planks into seasoned boards, which sell for more than twice as much. Needs power.' },
+  beamsaw: { name: 'Beam Saw', cat: 'factory', w: 2, h: 2, cost: 1600, power: 14, machine: true, req: 'beams', recipes: ['beam'], desc: 'Cuts a whole log into one heavy beam. Needs power.' },
+  press: { name: 'Pellet Press', cat: 'factory', w: 1, h: 1, cost: 650, power: 4, machine: true, req: 'sawdust', recipes: ['pellet'], desc: 'Packs 4 sawdust into a bag of fuel pellets. A steam engine burns one bag as long as 3 logs.' },
+  joinery: { name: 'Joinery', cat: 'factory', w: 3, h: 2, cost: 2800, power: 16, machine: true, req: 'joinery', recipes: ['cabinet', 'kit'], desc: 'Joins seasoned boards and beams into cabinets and cabin kits. Needs two kinds of input, so plan your conveyors.' },
+  shed: { name: 'Repair Shed', cat: 'factory', w: 2, h: 2, cost: 800, req: 'reinforced', desc: 'Spare parts close at hand. Machines within 8 tiles wear out a third slower.' },
+  splitter: { name: 'Splitter', cat: 'logi', w: 1, h: 1, cost: 80, cap: 2, desc: 'Takes items from a conveyor and deals them out in turn to every conveyor leading away.' },
+  sorter: { name: 'Sorter', cat: 'logi', w: 1, h: 1, cost: 150, cap: 1, dir: true, desc: 'Sends one kind of item straight ahead and everything else out to the sides. Press R to turn it, and click it to choose the item.' },
+  store: { name: 'Storehouse', cat: 'logi', w: 2, h: 2, cost: 600, cap: 150, desc: 'Holds up to 150 items and passes them on to any conveyor leading away. Smooths out a busy line.' },
+  lcamp: { name: 'Logging Camp', cat: 'logi', w: 2, h: 2, cost: 1000, beds: 2, rest: 12, req: 'outposts', desc: 'An outpost in the far woods. Lumberjacks fell and drop logs here, arborists replant around it, and two can sleep here. Logs leave by conveyor, or a hauler buys what is left each evening.' },
+  dock: { name: 'Harbour Dock', cat: 'logi', w: 2, h: 2, cost: 2000, water: true, req: 'harbour', desc: 'Must touch open water. Ships pay 25% over market price for anything a conveyor brings, and it fills contracts too.' },
+  steam: { name: 'Steam Engine', cat: 'power', w: 2, h: 2, cost: 800, gen: 30, machine: true, desc: 'Burns logs or fuel pellets to make power. Feed it by conveyor or let lumberjacks top it up.' },
   solar: { name: 'Solar Array', cat: 'power', w: 2, h: 2, cost: 900, gen: 12, req: 'solar', desc: 'Up to 12 power in daylight. No fuel.' },
-  pole: { name: 'Power Pole', cat: 'power', w: 1, h: 1, cost: 40, range: 6, desc: 'Carries power. Links to poles within 7 tiles and powers machines within 6.' },
+  wheel: { name: 'Water Wheel', cat: 'power', w: 2, h: 2, cost: 1400, gen: 16, machine: true, water: true, req: 'hydro', desc: 'Must touch open water. A steady 16 power, day and night, with no fuel.' },
+  pole: { name: 'Power Pole', cat: 'power', w: 1, h: 1, cost: 40, range: 6, link: 7.5, desc: 'Carries power. Links to poles within 7 tiles and powers machines within 6.' },
+  pylon: { name: 'Pylon', cat: 'power', w: 1, h: 1, cost: 180, range: 6, link: 14, req: 'pylons', desc: 'A tall pole. Links to other pylons up to 14 tiles away, so power can reach distant buildings.' },
 };
 const TOOLS = {
   belt: { name: 'Conveyor', cost: 12, desc: 'Drag to lay a conveyor. Items travel in the direction you drag. Press R to rotate.' },
@@ -45,16 +74,38 @@ const TOOLS = {
   bulldoze: { name: 'Bulldoze', desc: 'Remove buildings (half refund), conveyors, paths, stumps or trees (15 each, no logs).' },
   survey: { name: 'Survey', cost: 60, desc: 'Send a survey crew into the unexplored forest.' },
 };
+// the mill grows through five ranks, earned by total sales; each rank opens up more research
+const RANKS = [
+  { name: 'Woodlot', need: 0 },
+  { name: 'Sawmill', need: 2500 },
+  { name: 'Timber Yard', need: 9000 },
+  { name: 'Lumber Works', need: 25000 },
+  { name: 'Heartwood Company', need: 70000 },
+];
 const RESEARCH = [
   { id: 'carpentry', name: 'Carpentry', cost: 500, days: 1.5, desc: 'Unlocks the Workshop: planks into crates and chairs.' },
-  { id: 'comforts', name: 'Campsite Comforts', cost: 450, days: 1, desc: 'Unlocks cabins and flower beds.' },
+  { id: 'comforts', name: 'Campsite Comforts', cost: 450, days: 1, desc: 'Unlocks cabins, flower beds and the cookhouse.' },
   { id: 'birch', name: 'Birch Saplings', cost: 300, days: 1, desc: 'Fast-growing birch for your arborists to plant.' },
   { id: 'pine', name: 'Pine Saplings', cost: 300, days: 1, desc: 'Slow-growing, long-lived pine.' },
   { id: 'rollers', name: 'Greased Rollers', cost: 550, days: 1.5, desc: 'Conveyors run 60% faster.' },
-  { id: 'reinforced', name: 'Reinforced Machines', cost: 800, days: 2, desc: 'Machines wear out 40% slower.' },
-  { id: 'solar', name: 'Solar Arrays', cost: 1100, days: 2.5, desc: 'Daytime power with no fuel.' },
-  { id: 'trade', name: 'Advanced Trade', cost: 900, days: 2, desc: 'Negotiate trade offers and receive more of them.' },
-  { id: 'fine', name: 'Fine Furniture', cost: 1400, days: 3, req: 'carpentry', desc: 'Workshop can craft tables.' },
+  { id: 'reinforced', rank: 1, name: 'Reinforced Machines', cost: 800, days: 2, desc: 'Machines wear out 40% slower. Unlocks the Repair Shed.' },
+  { id: 'trade', rank: 1, name: 'Advanced Trade', cost: 900, days: 2, desc: 'Negotiate trade offers and receive more of them.' },
+  { id: 'fine', rank: 1, name: 'Fine Furniture', cost: 1400, days: 3, req: 'carpentry', desc: 'Workshop can craft tables.' },
+  { id: 'solar', rank: 1, name: 'Solar Arrays', cost: 1100, days: 2.5, desc: 'Daytime power with no fuel.' },
+  { id: 'sawdust', rank: 1, name: 'Sawdust Recovery', cost: 700, days: 1.5, desc: 'Sawmills can bag a sack of sawdust with every log: switch it on in each sawmill\'s panel. Unlocks the Pellet Press, which turns sawdust into fuel.' },
+  { id: 'kiln', rank: 1, name: 'Drying Kilns', cost: 1000, days: 2, desc: 'Unlocks the Drying Kiln: planks into seasoned boards.' },
+  { id: 'outposts', rank: 1, name: 'Logging Camps', cost: 900, days: 2, desc: 'Unlocks Logging Camps, outposts that let your crew work the far side of the island.' },
+  { id: 'tuning', rank: 1, name: 'Machine Tuning', cost: 1200, days: 2, desc: 'Upgrade production machines to Mk II: 60% faster, for a little more power.' },
+  { id: 'beams', rank: 2, name: 'Beam Saws', cost: 1600, days: 2.5, desc: 'Unlocks the Beam Saw: whole logs into heavy beams.' },
+  { id: 'hydro', rank: 2, name: 'Water Wheels', cost: 1800, days: 2.5, desc: 'Unlocks the Water Wheel: steady power from the lakes and the sea.' },
+  { id: 'bunk', rank: 2, name: 'Bunkhouses', cost: 1200, days: 2, desc: 'Unlocks the Bunkhouse, which sleeps eight.' },
+  { id: 'pylons', rank: 2, name: 'Pylons', cost: 1000, days: 1.5, desc: 'Unlocks pylons, which carry power 14 tiles at a stretch.' },
+  { id: 'nursery', rank: 2, name: 'Tree Nursery', cost: 1300, days: 2, desc: 'Unlocks the Tree Nursery: cheaper planting, and saplings that start out older.' },
+  { id: 'joinery', rank: 3, name: 'Joinery', cost: 2600, days: 3, req: ['kiln', 'beams'], desc: 'Unlocks the Joinery: seasoned boards and beams into cabinets.' },
+  { id: 'harbour', rank: 3, name: 'Harbour Dock', cost: 2400, days: 3, desc: 'Unlocks the Harbour Dock, where ships pay over market price.' },
+  { id: 'turbine', rank: 3, name: 'Steam Turbines', cost: 2200, days: 3, desc: 'Steam engines make 45 power instead of 30.' },
+  { id: 'tuning2', rank: 3, name: 'Precision Tuning', cost: 2500, days: 3, req: 'tuning', desc: 'Upgrade production machines to Mk III: more than twice as fast as new.' },
+  { id: 'kits', rank: 4, name: 'Cabin Kits', cost: 4000, days: 4, req: 'joinery', desc: 'The Joinery can build whole cabin kits for the settlers on the coast.' },
 ];
 const PERSONALITIES = {
   hardworking: { name: 'Hard-working', work: 1.25, desc: 'Works 25% faster.' },
@@ -106,6 +157,40 @@ function dateParts(day = dayOf()) {
 }
 function dateStr(day) { const p = dateParts(day); return `${p.m} ${p.d}, Year ${p.y}`; }
 function has(r) { return G.research.done.includes(r); }
+function rankOf(rev = G.stats.revenue) { let r = 0; RANKS.forEach((k, i) => { if (rev >= k.need) r = i; }); return r; }
+function reqList(r) { return !r.req ? [] : Array.isArray(r.req) ? r.req : [r.req]; }
+// can this research be started: earlier research done and the mill at a high enough rank
+function researchOpen(r) { return reqList(r).every(has) && rankOf() >= (r.rank || 0); }
+function researchName(id) { const r = RESEARCH.find(x => x.id === id); return r ? r.name : id; }
+const isPole = (b) => b.type === 'pole' || b.type === 'pylon';
+const isSource = (b) => b.type === 'steam' || b.type === 'solar' || b.type === 'wheel';
+function steamGen() { return has('turbine') ? 45 : BDEF.steam.gen; }
+// production machines can be tuned up to Mk III
+const MK = ['', 'Mk I', 'Mk II', 'Mk III'], MK_SPEED = [0, 1, 1.6, 2.2], MK_POWER = [0, 1, 1.3, 1.6];
+function powerUse(b) { return BDEF[b.type].power * MK_POWER[b.lvl || 1]; }
+function upgradeCost(b) { return Math.round(BDEF[b.type].cost * ((b.lvl || 1) === 1 ? 0.8 : 1.5)); }
+function canUpgrade(b) { const l = b.lvl || 1; return !!BDEF[b.type].recipes && ((l === 1 && has('tuning')) || (l === 2 && has('tuning2'))); }
+function upgradeMachine(b) {
+  if (!canUpgrade(b) || !spend(upgradeCost(b), 'an upgrade')) return false;
+  b.lvl = (b.lvl || 1) + 1; b.dur = 100; b.broken = false;
+  G.powerDirty = true;
+  fxText(b.x + b.w / 2, b.y + b.h / 2, MK[b.lvl] + '!', '#9fe39a'); sfx('level');
+  return true;
+}
+function touchesWater(x, y, w, h) {
+  for (let j = -1; j <= h; j++) for (let i = -1; i <= w; i++) {
+    if ((i >= 0 && j >= 0 && i < w && j < h) || ((i < 0 || i >= w) && (j < 0 || j >= h))) continue; // not inside, not a corner
+    if (inMap(x + i, y + j) && !G.tiles[idx(x + i, y + j)]) return true;
+  }
+  return false;
+}
+// the far woods a crew works from: the office, and any logging camps
+function workBases() { if (G._basesAt !== G.frame) { G._basesAt = G.frame; G._bases = [G.hq, ...G.buildings.filter(b => b.type === 'lcamp')]; } return G._bases; }
+function nearBase(x, y, extra = 0) {
+  const r = G.policy.chopRadius + extra;
+  for (const b of workBases()) { const c = bCenter(b); if (dist(x, y, c.x, c.y) <= (b.type === 'lcamp' ? Math.min(r, 11 + extra) : r)) return true; }
+  return false;
+}
 function treeStage(t) {
   if (t.sp === 'ancient') return 'mature';
   if (t.age < 3) return 'sapling';
@@ -156,7 +241,7 @@ function blankState(seed) {
     stats: { logsCut: 0, made: {}, sold: {}, revenue: 0, spent: 0, planted: 0, secrets: 0, contracts: 0, history: [] },
     goals: [], dirty: { x0: 0, y0: 0, x1: MAP - 1, y1: MAP - 1 }, powerDirty: true, frame: 0, lastDay: 0,
     initialForest: 0, health: 100, warned: 100, rivalFlood: null, lowCash: 0, reserved: new Set(),
-    hq: null, candDay: 0, fileSavedAt: null, autoSavedAt: null, story: newStory(),
+    hq: null, candDay: 0, fileSavedAt: null, autoSavedAt: null, story: newStory(), rank: 0,
   };
   for (const k of Object.keys(ITEMS)) g.market[k] = { m: 1, phase: rand() * 6.28, hist: [] };
   return g;
@@ -328,7 +413,7 @@ function collectSecret(s) {
   } else if (s.kind === 'journal') {
     findJournalPage();
   } else if (s.kind === 'blueprint') {
-    const left = RESEARCH.filter(r => !has(r.id) && (!r.req || has(r.req)) && (!G.research.active || G.research.active.id !== r.id));
+    const left = RESEARCH.filter(r => !has(r.id) && researchOpen(r) && (!G.research.active || G.research.active.id !== r.id));
     if (left.length) {
       const r = pick(left); G.research.done.push(r.id);
       letter('Mill Ledger', 'A surveyor\'s cache', `A waterproof tin holding old plans. Your foreman says they explain ${r.name} perfectly. Research complete: ${r.name}.`, 'good');
@@ -353,9 +438,10 @@ function canPlace(type, x, y) {
     if (t) return 'Trees in the way';
     if (G.secrets.some(s => !s.done && s.x === tx && s.y === ty)) return 'Something is here';
   }
+  if (d.water && !touchesWater(x, y, d.w, d.h)) return 'Must touch water';
   return null;
 }
-function placeBuilding(type, x, y, free = false) {
+function placeBuilding(type, x, y, free = false, dir = 0) {
   const d = BDEF[type];
   if (!free) {
     const why = canPlace(type, x, y);
@@ -364,6 +450,8 @@ function placeBuilding(type, x, y, free = false) {
   }
   const b = addBuilding(type, x, y, ++G.uid);
   if (type === 'steam') b.fuel = 4;
+  if (d.dir) b.dir = dir;
+  if (type === 'lookout') revealCircle(x + 0.5, y + 0.5, 13);
   for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) {
     const k = idx(x + i, y + j); G.stump[k] = 0; G.plantMark[k] = 0;
     if (G.tiles[k] === 2) G.tiles[k] = 1;
@@ -375,7 +463,7 @@ function placeBuilding(type, x, y, free = false) {
 // create a building record, claim its tiles and work out the tiles around it
 function addBuilding(type, x, y, id) {
   const d = BDEF[type];
-  const b = { id, type, x, y, w: d.w, h: d.h, inv: {}, out: [], prog: 0, recipe: d.recipes ? d.recipes[0] : null, dur: 100, broken: false, sat: 0, fuel: 0, stock: 0, res: 0, v: ri(0, 2), outIdx: 0, active: false, made: 0 };
+  const b = { id, type, x, y, w: d.w, h: d.h, inv: {}, out: [], prog: 0, recipe: d.recipes ? d.recipes[0] : null, dur: 100, broken: false, sat: 0, fuel: 0, stock: 0, res: 0, v: ri(0, 2), outIdx: 0, active: false, made: 0, lvl: 1, dir: 0, filter: null, byOn: false };
   G.buildings.push(b); G.bmap.set(b.id, b);
   for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) G.occ[idx(x + i, y + j)] = b.id;
   b.perim = [];
@@ -399,22 +487,28 @@ function removeBuilding(b) {
 }
 function bCenter(b) { return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; }
 function accepts(b, item) {
-  if (b.broken && BDEF[b.type].machine) return false;
+  const d = BDEF[b.type];
+  if (b.broken && d.machine) return false;
+  if (d.recipes) { const r = RECIPES[b.recipe]; return !!r && r.in[item] !== undefined && (b.inv[item] || 0) < r.in[item] * 4; }
+  if (d.cap) return b.out.length < d.cap;
   switch (b.type) {
     case 'intake': return item === 'log' && b.stock < 30;
-    case 'steam': return item === 'log' && b.fuel < 8;
-    case 'sawmill': case 'workshop': { const r = RECIPES[b.recipe]; return !!r && r.in[item] !== undefined && (b.inv[item] || 0) < r.in[item] * 4; }
-    case 'depot': return true;
+    case 'lcamp': return item === 'log' && b.stock < 40;
+    case 'steam': return (item === 'log' || item === 'pellet') && b.fuel < 8;
+    case 'depot': case 'dock': return true;
     case 'hq': return item === 'log';
   }
   return false;
 }
 function receive(b, item, n = 1, from) {
+  const d = BDEF[b.type];
+  if (d.recipes) { b.inv[item] = (b.inv[item] || 0) + n; return; }
+  if (d.cap) { for (let i = 0; i < n; i++) b.out.push(item); return; }
   switch (b.type) {
-    case 'intake': b.stock += n; break;
-    case 'steam': b.fuel += n; break;
-    case 'sawmill': case 'workshop': b.inv[item] = (b.inv[item] || 0) + n; break;
+    case 'intake': case 'lcamp': b.stock += n; break;
+    case 'steam': b.fuel += item === 'pellet' ? 3 * n : n; break; // a bag of pellets burns as long as three logs
     case 'depot': sellItem(item, n, b); break;
+    case 'dock': sellItem(item, n, b, 1.25); break;
     case 'hq': sellItem('log', n, b, 0.6); break; // haulers pay poorly, but log contracts still count
   }
 }
@@ -484,10 +578,11 @@ function updateBelts(dt) {
     if (bd && accepts(bd, b.item)) { receive(bd, b.item, 1); b.item = null; b.p = 0; }
   }
 }
-function pushOut(b, item) { // try to put an item onto an outgoing belt next to building b
+function pushOut(b, item, only) { // try to put an item onto an outgoing belt next to building b
   const n = b.perim.length;
   for (let k = 0; k < n; k++) {
     const [x, y] = b.perim[(b.outIdx + k) % n];
+    if (only && !only(x, y)) continue;
     const bl = G.belt[idx(x, y)];
     if (!bl || bl.item) continue;
     const tx = x + DX[bl.dir], ty = y + DY[bl.dir];
@@ -502,18 +597,19 @@ function pushOut(b, item) { // try to put an item onto an outgoing belt next to 
 // ---------- power ----------
 function recomputePower() {
   G.powerDirty = false;
-  const nodes = G.buildings.filter(b => b.type === 'pole' || b.type === 'steam' || b.type === 'solar');
+  const nodes = G.buildings.filter(b => isPole(b) || isSource(b));
   const parent = new Map(nodes.map(n => [n.id, n.id]));
   const find = (a) => { while (parent.get(a) !== a) { parent.set(a, parent.get(parent.get(a))); a = parent.get(a); } return a; };
   G.wires = [];
   for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
     const a = nodes[i], b = nodes[j];
-    if (a.type !== 'pole' && b.type !== 'pole') continue;
+    if (!isPole(a) && !isPole(b)) continue;
+    const reach = a.type === 'pylon' && b.type === 'pylon' ? BDEF.pylon.link : BDEF.pole.link; // pylons only reach far to each other
     const ca = bCenter(a), cb = bCenter(b);
-    if (dist(ca.x, ca.y, cb.x, cb.y) <= 7.5) { parent.set(find(a.id), find(b.id)); G.wires.push([a, b]); }
+    if (dist(ca.x, ca.y, cb.x, cb.y) <= reach) { parent.set(find(a.id), find(b.id)); G.wires.push([a, b]); }
   }
   const nets = new Map();
-  for (const n of nodes) { const r = find(n.id); if (!nets.has(r)) nets.set(r, { sources: [], consumers: [], poles: [] }); const net = nets.get(r); (n.type === 'pole' ? net.poles : net.sources).push(n); n.net = net; }
+  for (const n of nodes) { const r = find(n.id); if (!nets.has(r)) nets.set(r, { sources: [], consumers: [], poles: [] }); const net = nets.get(r); (isPole(n) ? net.poles : net.sources).push(n); n.net = net; }
   for (const b of G.buildings) {
     if (!BDEF[b.type].power) continue;
     b.net = null;
@@ -521,10 +617,10 @@ function recomputePower() {
     let best = null, bd = 1e9;
     for (const n of nodes) {
       const cn = bCenter(n), d = dist(cb.x, cb.y, cn.x, cn.y);
-      const range = n.type === 'pole' ? 6.5 : 3.2;
+      const range = isPole(n) ? 6.5 : 3.2;
       if (d <= range && d < bd) { bd = d; best = n; }
     }
-    if (best) { b.net = best.net; best.net.consumers.push(b); if (best.type === 'pole') G.wires.push([best, b]); }
+    if (best) { b.net = best.net; best.net.consumers.push(b); if (isPole(best)) G.wires.push([best, b]); }
   }
   G.nets = [...nets.values()];
 }
@@ -536,17 +632,20 @@ function updatePower(dt) {
     for (const s of net.sources) {
       s.gen = 0;
       if (s.broken) continue;
-      if (s.type === 'steam' && s.fuel > 0) s.gen = BDEF.steam.gen;
+      if (s.type === 'steam' && s.fuel > 0) s.gen = steamGen();
       if (s.type === 'solar') s.gen = BDEF.solar.gen * dl;
+      if (s.type === 'wheel') s.gen = BDEF.wheel.gen;
       supply += s.gen;
     }
-    for (const c of net.consumers) if (c.wants) demand += BDEF[c.type].power;
+    for (const c of net.consumers) if (c.wants) demand += powerUse(c);
     const sat = demand > 0 ? Math.min(1, supply / demand) : (supply > 0 ? 1 : 0);
     net.supply = supply; net.demand = demand; net.sat = sat;
     for (const c of net.consumers) c.sat = sat;
     // burn fuel in proportion to load
     const load = supply > 0 ? Math.min(1, demand / supply) : 0;
-    for (const s of net.sources) if (s.type === 'steam' && s.gen > 0) {
+    for (const s of net.sources) {
+      if (s.type === 'wheel') { s.active = s.gen > 0; if (load > 0) wear(s, dt * 0.12); continue; }
+      if (s.type !== 'steam' || !(s.gen > 0)) continue;
       s.burn = (s.burn || 0) + dt * (0.15 + load * 0.85) / 30;
       s.active = load > 0;
       if (s.burn >= 1) { s.burn -= 1; s.fuel--; }
@@ -558,6 +657,8 @@ function updatePower(dt) {
 function wear(b, amt) {
   if (tutorialActive()) return; // machines don't break while you are still learning
   if (has('reinforced')) amt *= 0.6;
+  const c = bCenter(b);
+  if (G.buildings.some(s => s.type === 'shed' && dist(s.x + 1, s.y + 1, c.x, c.y) <= 8)) amt *= 0.65;
   b.dur = Math.max(0, b.dur - amt);
   if (!b.broken && (b.dur <= 0 || (b.dur < 25 && chance(0.0008)))) {
     b.broken = true;
@@ -570,25 +671,33 @@ function wear(b, amt) {
 // ---------- machines ----------
 function updateMachines(dt) {
   for (const b of G.buildings) {
-    if (b.type === 'sawmill' || b.type === 'workshop') {
+    const d = BDEF[b.type];
+    if (d.recipes) {
       const r = RECIPES[b.recipe];
-      const hasIn = r && Object.entries(r.in).every(([k, n]) => (b.inv[k] || 0) >= n);
+      const hasIn = r && (!r.req || has(r.req)) && Object.entries(r.in).every(([k, n]) => (b.inv[k] || 0) >= n);
       b.wants = hasIn && b.out.length < 6 && !b.broken;
       b.active = b.wants && b.sat > 0;
       if (b.active) {
-        b.prog += dt * b.sat / r.time;
+        b.prog += dt * b.sat * MK_SPEED[b.lvl || 1] / r.time;
         wear(b, dt * 0.45);
         if (b.prog >= 1) {
           b.prog = 0;
           for (const [k, n] of Object.entries(r.in)) b.inv[k] -= n;
           for (let i = 0; i < r.n; i++) b.out.push(r.out);
+          if (r.by && has(r.byReq) && b.byOn) { b.out.push(r.by); G.stats.made[r.by] = (G.stats.made[r.by] || 0) + 1; }
           G.stats.made[r.out] = (G.stats.made[r.out] || 0) + r.n;
           b.made += r.n;
         }
       }
     }
-    if (b.type === 'intake' && b.stock > 0) { if (pushOut(b, 'log')) b.stock--; }
-    if (b.out.length && pushOut(b, b.out[0])) b.out.shift();
+    if ((b.type === 'intake' || b.type === 'lcamp') && b.stock > 0) { if (pushOut(b, 'log')) b.stock--; }
+    if (b.type === 'sorter') {
+      // the chosen item goes straight ahead; everything else leaves by the sides
+      if (b.out.length) {
+        const fx = b.x + DX[b.dir], fy = b.y + DY[b.dir], ahead = !b.filter || b.out[0] === b.filter;
+        if (pushOut(b, b.out[0], (x, y) => (x === fx && y === fy) === ahead)) b.out.shift();
+      }
+    } else if (b.out.length && pushOut(b, b.out[0])) b.out.shift();
     if (b.saleText && (b.saleT = (b.saleT || 0) + dt) > 1.2) { fxText(b.x + 1, b.y + 1, '+' + fmt(b.saleText), '#f3c11b'); sfx('coin', b.x + 1, b.y + 1); b.saleText = 0; b.saleT = 0; }
   }
 }
@@ -746,6 +855,7 @@ function goToBuilding(w, b, task) {
   return walkTo(w, s[0], s[1], task);
 }
 
+const BED_TYPES = Object.keys(BDEF).filter(k => BDEF[k].beds);
 function think(w) {
   const n = w.needs;
   // needs come first
@@ -760,11 +870,15 @@ function think(w) {
     n.hydration = 60; w.mood.morale -= 6; w.thought = 'No well here. Pond water it is.'; return;
   }
   if (thinkFire(w)) return;
+  if (n.energy < 45 && !isNight() && w.meal !== dayOf()) { // a hot meal perks up a tired worker, once a day
+    const o = nearestBuilding(w, ['cookhouse']);
+    if (o && dist(o.x, o.y, w.x, w.y) < 30 && goToBuilding(w, o, { type: 'use', what: 'cookhouse', time: 3 })) { w.meal = dayOf(); w.thought = 'Lunch break. Smells like stew.'; return; }
+  }
   const sleepy = n.energy < 15 || (isNight() && n.energy < (PERSONALITIES[w.pers].sleep ? 35 : 70));
   if (sleepy) {
     let bed = w.home && G.bmap.get(w.home);
     if (!bed) {
-      bed = nearestBuilding(w, ['tent', 'cabin'], b => G.workers.filter(o => o.home === b.id).length < BDEF[b.type].beds);
+      bed = nearestBuilding(w, BED_TYPES, b => G.workers.filter(o => o.home === b.id).length < BDEF[b.type].beds);
       if (bed) w.home = bed.id;
     }
     if (bed && goToBuilding(w, bed, { type: 'sleep', bed: true })) { w.thought = 'Time to turn in.'; return; }
@@ -812,16 +926,15 @@ function thinkLumberjack(w) {
       const d = dist(t.x, t.y, w.x, w.y);
       if (d >= nd) continue;
       const st = treeStage(t);
-      if (t.mark || (G.policy.autoChop && (t.dead || st === 'mature' || st === 'old') && dist(t.x, t.y, G.hq.x + 1.5, G.hq.y + 1.5) <= G.policy.chopRadius)) { nd = d; near = t; }
+      if (t.mark || (G.policy.autoChop && (t.dead || st === 'mature' || st === 'old') && nearBase(t.x, t.y))) { nd = d; near = t; }
     }
     if (near && chopTree(w, near)) return true;
   }
   if (w.carry) {
-    const dest = nearestBuilding(w, ['steam'], b => b.fuel < 3 && !b.broken) || nearestBuilding(w, ['intake'], b => b.stock < 30) || G.hq;
+    const dest = nearestBuilding(w, ['steam'], b => b.fuel < 3 && !b.broken) || nearestBuilding(w, ['intake', 'lcamp'], b => accepts(b, 'log')) || G.hq;
     if (goToBuilding(w, dest, { type: 'deliver' })) { w.thought = dest.type === 'hq' ? 'Hauling these to the office. Wish we had a Log Drop.' : `Taking ${w.carry.n} logs to the ${BDEF[dest.type].name}.`; return true; }
     return false;
   }
-  const c = bCenter(G.hq);
   let best = null, bs = 1e9;
   for (const t of G.trees) {
     if (t.res || t.fire || t.sp === 'ancient' || t.unreach === dayOf() || !G.reveal[idx(t.x, t.y)]) continue;
@@ -829,9 +942,9 @@ function thinkLumberjack(w) {
     let score;
     if (t.mark) score = d - 100;
     else if (G.policy.autoChop) {
-      if (dist(t.x, t.y, c.x, c.y) > G.policy.chopRadius) continue;
       const st = treeStage(t);
       if (!t.dead && st !== 'mature' && st !== 'old') continue;
+      if (!nearBase(t.x, t.y)) continue;
       score = d - (t.dead ? 10 : st === 'old' ? 6 : 0);
     } else continue;
     if (score < bs) { bs = score; best = t; }
@@ -891,7 +1004,7 @@ function thinkArborist(w) {
     const x = k % MAP, y = (k / MAP) | 0;
     let s;
     if (G.plantMark[k]) { if (!plantable(x, y)) { G.plantMark[k] = 0; continue; } s = dist(x, y, w.x, w.y) - 60; }
-    else if (G.policy.replant && G.stump[k] && G.tiles[k] === 1 && !G.occ[k] && !G.tree[k] && !G.belt[k] && dist(x, y, c.x, c.y) < G.policy.chopRadius + 4) s = dist(x, y, w.x, w.y);
+    else if (G.policy.replant && G.stump[k] && G.tiles[k] === 1 && !G.occ[k] && !G.tree[k] && !G.belt[k] && nearBase(x, y, 4)) s = dist(x, y, w.x, w.y);
     else continue;
     if (s < bs) { bs = s; tile = k; }
   }
@@ -914,6 +1027,7 @@ function thinkArborist(w) {
   }
   return false;
 }
+function plantCost() { return G.buildings.some(b => b.type === 'nursery') ? TOOLS.plant.cost / 2 : TOOLS.plant.cost; }
 function walkNear(w, x, y, task) {
   for (let d = 0; d < 8; d++) {
     const ax = x + [1, 0, -1, 0, 1, 1, -1, -1][d], ay = y + [0, 1, 0, -1, 1, -1, 1, -1][d];
@@ -949,6 +1063,7 @@ function finishAct(w) {
   switch (t && t.type) {
     case 'use':
       if (t.what === 'well') w.needs.hydration = 100;
+      else if (t.what === 'cookhouse') { w.needs.energy = Math.min(100, w.needs.energy + 30); w.needs.hydration = Math.min(100, w.needs.hydration + 20); }
       else w.needs.bladder = 0;
       break;
     case 'deliver': {
@@ -981,9 +1096,10 @@ function finishAct(w) {
       const x = t.tile % MAP, y = (t.tile / MAP) | 0;
       G.reserved.delete(t.tile);
       G.stump[t.tile] = 0;
-      if (plantable(x, y) && G.money >= TOOLS.plant.cost) {
-        G.money -= TOOLS.plant.cost; G.stats.spent += TOOLS.plant.cost;
-        addTree(x, y, G.plantSpecies, 0.2); G.plantMark[t.tile] = 0; G.stats.planted++; gainXp(w, 1); sfx('plant', x + 0.5, y + 0.5);
+      const nursery = G.buildings.some(b => b.type === 'nursery'), cost = plantCost();
+      if (plantable(x, y) && G.money >= cost) {
+        G.money -= cost; G.stats.spent += cost;
+        addTree(x, y, G.plantSpecies, nursery ? 3.5 : 0.2); G.plantMark[t.tile] = 0; G.stats.planted++; gainXp(w, 1); sfx('plant', x + 0.5, y + 0.5);
         markDirty(x, y, x, y);
       }
       break;
@@ -1028,7 +1144,8 @@ function updateWorker(w, dt) {
     w.timer -= dt;
     if (w.timer <= 0) finishAct(w);
   } else if (w.state === 'sleep') {
-    const rate = w.task && w.task.bed ? (G.bmap.get(w.home) && G.bmap.get(w.home).type === 'cabin' ? 16 : 12) : 7;
+    const home = G.bmap.get(w.home);
+    const rate = w.task && w.task.bed ? (home && BDEF[home.type].rest) || 12 : 7;
     n.energy = Math.min(100, n.energy + hours * rate);
     if (Math.random() < dt * 0.6) G.fx.push({ k: 'z', x: isoX(w.x, w.y) + 3, y: isoY(w.x, w.y) - 14, vx: 3, vy: -6, life: 1.6 });
     const h = hourOf();
@@ -1065,9 +1182,10 @@ function updateMood(w, dt) {
   const fires = G.buildings.filter(b => b.type === 'campfire').length;
   const flowers = G.buildings.filter(b => b.type === 'flowers').length;
   const hasBed = w.home && G.bmap.has(w.home);
-  const cabin = hasBed && G.bmap.get(w.home).type === 'cabin';
+  const cabin = hasBed && (BDEF[G.bmap.get(w.home).type].rest || 0) > 12;
+  const cook = G.buildings.some(b => b.type === 'cookhouse');
   const cold = seasonOf() === 3;
-  let target = 58 + (P_.morale || 0) + (fires ? (cold ? 12 : 8) : (cold ? -10 : -4)) + Math.min(10, flowers * 2.5) + (hasBed ? (cabin ? 12 : 6) : -14) + (G.health - 85) * 0.35;
+  let target = 58 + (P_.morale || 0) + (fires ? (cold ? 12 : 8) : (cold ? -10 : -4)) + Math.min(10, flowers * 2.5) + (hasBed ? (cabin ? 12 : 6) : -14) + (cook ? 8 : 0) + (G.health - 85) * 0.35;
   m.morale = clamp(m.morale + (target - m.morale) * dt * 0.02, 0, 100);
   const grumps = G.workers.filter(o => o !== w && o.pers === 'grumpy').length;
   const cheer = G.workers.filter(o => o !== w && o.pers === 'cheerful').length;
@@ -1195,6 +1313,7 @@ function newDay() {
       letter(c.company, 'Contract cancelled', `We needed ${c.qty} ${ITEMS[c.item].name.toLowerCase()} by ${dateStr(c.deadline)} and received ${c.delivered}. Our lawyers have recovered a penalty of ${fmt(pen)}. We won't be in touch for a while.`, 'bad');
     }
   }
+  for (const b of G.buildings) if (b.type === 'lcamp' && b.stock > 0) { sellItem('log', b.stock, b, 0.7); b.stock = 0; } // the hauler's evening run
   if (day - G.candDay >= 4) refreshCandidates();
   if (G.money < 0) { G.lowCash++; if (G.lowCash === 1) letter('Mill Ledger', 'You are overdrawn', 'The mill account is in the red. Staff still expect their wages every evening. Sell some stock, or let some staff go.', 'bad'); } else G.lowCash = 0;
   G.stats.history.push({ day, money: Math.round(G.money), health: G.health, trees: G.trees.length });
@@ -1204,12 +1323,17 @@ function unlockedItems() {
   const l = ['log', 'plank'];
   if (has('carpentry')) l.push('crate', 'chair');
   if (has('fine')) l.push('table');
+  if (has('sawdust')) l.push('pellet');
+  if (has('kiln')) l.push('board');
+  if (has('beams')) l.push('beam');
+  if (has('joinery')) l.push('cabinet');
+  if (has('kits')) l.push('kit');
   return l;
 }
 function newOffer(first) {
   const items = unlockedItems();
   const item = first ? pick(['log', 'plank']) : pick(items.slice(-3).concat(items));
-  const qty = { log: ri(15, 35), plank: ri(30, 80), crate: ri(8, 20), chair: ri(5, 14), table: ri(3, 7) }[item];
+  const qty = { log: ri(15, 35), plank: ri(30, 80), crate: ri(8, 20), chair: ri(5, 14), table: ri(3, 7), pellet: ri(10, 25), board: ri(20, 50), beam: ri(10, 24), cabinet: ri(3, 8), kit: ri(1, 3) }[item];
   const price = +(marketPrice(item) * rf(1.15, 1.45) * (1 + G.rep * 0.03)).toFixed(1);
   const day = dayOf();
   const free = COMPANIES.filter(c => !G.offers.some(o => o.company === c) && !G.contracts.some(o => o.company === c));
@@ -1329,4 +1453,5 @@ function simStep(dt) {
   }
   checkGoals();
   checkStory();
+  if (!tutorialActive() && rankOf() > G.rank) rankUp(rankOf());
 }

@@ -88,7 +88,7 @@ function buildHud() {
   const tb = $('#toolbar');
   const tools = [
     ['select', 'Select', 'Select and inspect', I.select, 'V'], ['camp', 'Camp', 'Camp buildings', I.camp, '1'], ['factory', 'Factory', 'Factory buildings', I.factory, '2'],
-    ['belt', 'Conveyor', 'Conveyor', I.belt, 'C'], ['power', 'Power', 'Power buildings', I.power, '3'], ['chop', 'Fell', 'Mark trees for felling', I.chop, 'F'],
+    ['belt', 'Conveyor', 'Conveyor', I.belt, 'C'], ['logi', 'Logistics', 'Logistics buildings', I.logi, '4'], ['power', 'Power', 'Power buildings', I.power, '3'], ['chop', 'Fell', 'Mark trees for felling', I.chop, 'F'],
     ['plant', 'Plant', 'Mark ground for planting', I.plant, 'P'], ['path', 'Path', 'Dirt path', I.path, 'T'], ['bulldoze', 'Remove', 'Remove things', I.bulldoze, 'B'],
     ['survey', 'Survey', 'Survey the forest', I.survey, 'X'], ['mill', 'Ledger', 'Mill Ledger', I.mill, 'M'],
   ];
@@ -151,7 +151,7 @@ function setSpeed(s) {
 function pickTool(id) {
   if (!toolShown(id)) return;
   if (id === 'mill') { UI.panelOpen ? closePanel() : openPanel(UI.tab); return; }
-  if (id === 'camp' || id === 'factory' || id === 'power') { UI.flyout === id ? closeFlyout() : openFlyout(id); return; }
+  if (MENUS[id]) { UI.flyout === id ? closeFlyout() : openFlyout(id); return; }
   closeFlyout();
   setTool(id);
 }
@@ -173,13 +173,14 @@ function updateHint() {
   let name, desc, cost, extra = '';
   if (BDEF[t]) { name = BDEF[t].name; desc = BDEF[t].desc + ' Click to place it. Hold Shift to place several.'; cost = BDEF[t].cost; }
   else { name = TOOLS[t].name; desc = TOOLS[t].desc; cost = TOOLS[t].cost; }
-  if (t === 'belt') extra = `<button data-hint="rotate">Rotate: ${DIR_NAMES[UI.beltDir]} (R)</button>`;
+  if (t === 'belt' || (BDEF[t] && BDEF[t].dir)) extra = `<button data-hint="rotate">${t === 'belt' ? 'Rotate' : 'Facing'}: ${DIR_NAMES[UI.beltDir]} (R)</button>`;
   if (t === 'chop' || t === 'plant') extra = `<button data-hint="unmark" class="${UI.unmark ? 'on' : ''}">${UI.unmark ? 'Unmarking' : 'Marking'} (Shift)</button>`;
   h.innerHTML = `<div><b>${esc(name)}</b>${cost ? ` ${coin(cost)}${t === 'belt' || t === 'path' || t === 'plant' ? ' per tile' : ''}` : ''}<p>${esc(desc)}</p></div><div class="hint-btns">${extra}<button data-hint="cancel">Done (Esc)</button></div>`;
 }
 // ---------- the walkthrough: coach card, pointer arrow, and revealing the interface bit by bit ----------
 const REVEAL_PARTS = { zoom: ['#zoom'], map: ['#minimap'], date: ['#datebox'], chips: ['#chip-forest', '#chip-power', '#chip-staff'], letters: ['#chip-letters'] };
-const ALL_TOOLS = ['select', 'camp', 'factory', 'belt', 'power', 'chop', 'plant', 'path', 'bulldoze', 'survey', 'mill'];
+const ALL_TOOLS = ['select', 'camp', 'factory', 'belt', 'logi', 'power', 'chop', 'plant', 'path', 'bulldoze', 'survey', 'mill'];
+const MENUS = { camp: 'Campsite', factory: 'Factory', logi: 'Logistics', power: 'Power' };
 function revealedSet(step) {
   if (!step) return null; // everything
   const set = new Set();
@@ -270,7 +271,8 @@ function renderHelp() {
       <dt>Move</dt><dd>Drag the map, or use WASD or the arrow keys. Click the minimap to jump. The house button returns to your mill.</dd>
       <dt>Zoom</dt><dd>Mouse wheel, trackpad pinch, two-finger pinch, + and − buttons, or Q and E.</dd>
       <dt>Inspect</dt><dd>With Select on (V), click staff, buildings and trees. Hover to see what something is.</dd>
-      <dt>Build</dt><dd>Pick a building from Camp, Factory or Power, then click the ground. Hold Shift to place several.</dd>
+      <dt>Build</dt><dd>Pick a building from Camp, Factory, Logistics or Power (keys 1 to 4), then click the ground. Hold Shift to place several. R turns a Sorter before you place it.</dd>
+      <dt>Grow</dt><dd>Sales raise your mill's rank, shown under your goals. Each rank opens new research, and new research opens new buildings.</dd>
       <dt>Drag tools</dt><dd>Conveyor, Fell, Plant, Path and Remove work by dragging. Conveyors run the way you drag; R rotates one.</dd>
       <dt>Cancel</dt><dd>Esc or right-click goes back to Select.</dd>
       <dt>Time</dt><dd>Space pauses. The arrows by the date speed time up.</dd>
@@ -286,9 +288,9 @@ function openFlyout(cat) {
   UI.flyout = cat;
   const f = $('#flyout');
   const items = Object.entries(BDEF).filter(([, d]) => d.cat === cat);
-  f.innerHTML = `<h3>${{ camp: 'Campsite', factory: 'Factory', power: 'Power' }[cat]}</h3><div class="cards">` + items.map(([id, d]) => {
+  f.innerHTML = `<h3>${MENUS[cat]}</h3><div class="cards">` + items.map(([id, d]) => {
     const locked = d.req && !has(d.req);
-    const rname = locked ? RESEARCH.find(r => r.id === d.req).name : '';
+    const rname = locked ? researchName(d.req) : '';
     return `<button class="bcard" data-build="${id}" ${locked ? 'disabled' : ''} title="${esc(d.desc)}"><img src="${spriteThumb(id)}" alt=""><span class="nm">${esc(d.name)}</span>${locked ? `<span class="lock">Research ${esc(rname)}</span>` : `<span class="cost">${coin(d.cost)}</span>`}</button>`;
   }).join('') + '</div>';
   f.hidden = false; $('#hint').hidden = true;
@@ -331,7 +333,9 @@ function updateHud() {
     const st = G.story, goals = storyGoals(), c = chapterDef();
     $('#goals-title').textContent = st.ended ? 'Free play' : st.chapter >= 2 ? `Chapter ${st.chapter}: ${c.title}` : 'Goals';
     $('#goal-count').textContent = `${goals.filter(g => st.done.includes(g.id)).length}/${goals.length}`;
-    const html = goals.map(g => { const ok = st.done.includes(g.id); return `<li class="${ok ? 'ok' : ''}"><span class="box"></span>${esc(g.text)}${g.reward && !ok ? ` <em>${coin(g.reward)}</em>` : ''}</li>`; }).join('') || '<li>Finish the walkthrough to begin the story.</li>';
+    const rp = rankProgress();
+    const rank = `<li class="rank" title="${rp.next ? `Sell ${fmt(rp.next.need)} in all to become a ${esc(rp.next.name)}. Each rank opens new research.` : 'The top rank'}"><span>${esc(RANKS[rp.r].name)}</span><div class="bar"><i class="good" style="width:${(rp.frac * 100).toFixed(0)}%"></i></div><em>${rp.next ? esc(rp.next.name) : 'Top'}</em></li>`;
+    const html = (goals.map(g => { const ok = st.done.includes(g.id); return `<li class="${ok ? 'ok' : ''}"><span class="box"></span>${esc(g.text)}${g.reward && !ok ? ` <em>${coin(g.reward)}</em>` : ''}</li>`; }).join('') || '<li>Finish the walkthrough to begin the story.</li>') + rank;
     if (html !== lastHud) { $('#goal-list').innerHTML = html; lastHud = html; }
   }
   applyHighlights(step);
@@ -377,44 +381,71 @@ function inspectWorker(w) {
   }
   return `<h3>${esc(w.name)}<button class="x" data-act="close" aria-label="Close">×</button></h3><div class="tabs small">${tabs}</div><div class="ins-body">${body}</div>`;
 }
+function itemCounts(list) {
+  const n = {};
+  for (const it of list) n[it] = (n[it] || 0) + 1;
+  return Object.entries(n).map(([k, c]) => `${c} ${itemImg(k)}`).join(' ') || 'Empty';
+}
 function inspectBuilding(b) {
   const d = BDEF[b.type];
   let st = '', body = '';
   if (d.machine) {
-    let state = b.broken ? ['Broken down', 'bad'] : (b.type === 'steam' ? (b.gen > 0 ? (b.active ? ['Supplying power', 'good'] : ['Idling, no demand', 'ok']) : ['Out of fuel', 'bad']) : (b.active ? ['Running', 'good'] : b.wants ? ['No power', 'bad'] : ['Waiting for materials', 'ok']));
+    let state;
+    if (b.broken) state = ['Broken down', 'bad'];
+    else if (b.type === 'steam') state = b.gen > 0 ? (b.active ? ['Supplying power', 'good'] : ['Idling, no demand', 'ok']) : ['Out of fuel', 'bad'];
+    else if (b.type === 'wheel') state = b.active ? ['Turning', 'good'] : ['Not connected', 'ok'];
+    else state = b.active ? ['Running', 'good'] : b.wants ? ['No power', 'bad'] : ['Waiting for materials', 'ok'];
     st = `<div class="state ${state[1]}">${state[0]}</div>`;
     body += `<div class="stat"><span>Condition</span><div class="bar"><i class="${face(b.dur)}" style="width:${b.dur.toFixed(0)}%"></i></div></div>`;
   }
   if (d.power) {
     const n = b.net;
-    body += `<div class="kv"><span>Power</span><b>${n ? `${Math.round(n.demand)} used / ${Math.round(n.supply)} made` : 'Not connected. Build a power pole nearby.'}</b></div>`;
+    body += `<div class="kv"><span>Power</span><b>${n ? `Needs ${Math.round(powerUse(b))}. Network: ${Math.round(n.demand)} used / ${Math.round(n.supply)} made` : 'Not connected. Build a power pole nearby.'}</b></div>`;
   }
-  if (b.type === 'steam') body += `<div class="kv"><span>Fuel</span><b>${b.fuel} logs</b></div><p class="note">Feed logs by conveyor. Lumberjacks top it up when it runs low.</p>`;
-  if (b.type === 'solar') body += `<div class="kv"><span>Output</span><b>${(b.gen || 0).toFixed(1)} power</b></div>`;
+  if (b.type === 'steam') body += `<div class="kv"><span>Fuel</span><b>${b.fuel} ${itemImg('log')}</b></div><div class="kv"><span>Output</span><b>${steamGen()} power</b></div><p class="note">Feed logs or fuel pellets by conveyor. A bag of pellets burns as long as 3 logs. Lumberjacks top it up when it runs low.</p>`;
+  if (b.type === 'solar' || b.type === 'wheel') body += `<div class="kv"><span>Output</span><b>${(b.gen || 0).toFixed(1)} power</b></div>`;
   if (d.recipes) {
     const r = RECIPES[b.recipe];
     body += `<h4>Recipe</h4><div class="recipes">` + d.recipes.map(id => {
       const rr = RECIPES[id], locked = rr.req && !has(rr.req);
       const ins = Object.entries(rr.in).map(([k, n]) => `${n} ${itemImg(k)}`).join(' ');
-      return `<button data-act="recipe" data-v="${id}" class="${b.recipe === id ? 'on' : ''}" ${locked ? 'disabled' : ''}>${ins} → ${rr.n} ${itemImg(rr.out)}<span>${locked ? 'Needs Fine Furniture' : rr.name}</span></button>`;
+      const by = rr.by && has(rr.byReq) && b.byOn ? ` + 1 ${itemImg(rr.by)}` : '';
+      return `<button data-act="recipe" data-v="${id}" class="${b.recipe === id ? 'on' : ''}" ${locked ? 'disabled' : ''}>${ins} → ${rr.n} ${itemImg(rr.out)}${by}<span>${locked ? `Needs ${esc(researchName(rr.req))}` : rr.name}</span></button>`;
     }).join('') + '</div>';
     body += `<div class="kv"><span>Progress</span><div class="bar"><i class="good" style="width:${(b.prog * 100).toFixed(0)}%"></i></div></div>`;
     body += `<div class="kv"><span>Input</span><b>${Object.keys(r.in).map(k => `${b.inv[k] || 0} ${itemImg(k)}`).join(' ')}</b></div><div class="kv"><span>Made</span><b>${b.made}</b></div>`;
-    if (!b.net) body += `<p class="note">Bring logs in on a conveyor pointing into the building. Finished goods leave on any conveyor pointing away from it.</p>`;
+    if (r.by && has(r.byReq)) body += `<div class="kv"><span>Bag ${ITEMS[r.by].name.toLowerCase()}</span><b><button data-act="byp" class="${b.byOn ? 'on' : ''}">${b.byOn ? 'On' : 'Off'}</button></b></div><p class="note">${b.byOn ? `${ITEMS[r.by].name} leaves on the same conveyors as the ${ITEMS[r.out].name.toLowerCase()}. A Sorter can split it off towards a Pellet Press.` : `Switch this on to send out a sack of ${ITEMS[r.by].name.toLowerCase()} with every log sawn.`}</p>`;
+    if (Object.keys(r.in).length > 1) body += `<p class="note">This recipe needs more than one kind of input. Bring each in on its own conveyor, or mix them on one line: anything the machine can't take yet waits on the belt.</p>`;
+    else if (!b.net) body += `<p class="note">Bring materials in on a conveyor pointing into the building. Finished goods leave on any conveyor pointing away from it.</p>`;
+    // tuning
+    const lvl = b.lvl || 1;
+    body += `<h4>Tuning: ${MK[lvl]}</h4><div class="kv"><span>Speed</span><b>${Math.round(MK_SPEED[lvl] * 100)}%</b></div>`;
+    if (canUpgrade(b)) body += `<div class="row-btns"><button class="go" data-act="upgrade">Tune to ${MK[lvl + 1]} ${coin(upgradeCost(b))}</button></div><p class="note">${MK[lvl + 1]} runs at ${Math.round(MK_SPEED[lvl + 1] * 100)}% speed and needs ${Math.round(d.power * MK_POWER[lvl + 1])} power.</p>`;
+    else if (lvl < 3) body += `<p class="note">Research ${lvl === 1 ? 'Machine Tuning' : 'Precision Tuning'} to tune this machine to ${MK[lvl + 1]}.</p>`;
   }
-  if (b.type === 'intake') body += `<div class="kv"><span>Logs stored</span><b>${b.stock}/30</b></div><p class="note">Lay a conveyor leading away from the Log Drop and logs will roll out onto it.</p>`;
-  if (b.type === 'depot') {
-    body += `<h4>Sold</h4>` + Object.keys(ITEMS).map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name}</span><b>${G.stats.sold[k] || 0} @ ${marketPrice(k).toFixed(1)}</b></div>`).join('');
+  if (b.type === 'intake' || b.type === 'lcamp') body += `<div class="kv"><span>Logs stored</span><b>${b.stock}/${b.type === 'lcamp' ? 40 : 30}</b></div><p class="note">Lay a conveyor leading away and logs will roll out onto it.${b.type === 'lcamp' ? ' Whatever is left in the evening goes to a hauler at 70% of the market price.' : ''}</p>`;
+  if (b.type === 'depot' || b.type === 'dock') {
+    body += `<h4>Prices here</h4>` + unlockedItems().map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name}</span><b>${(marketPrice(k) * (b.type === 'dock' ? 1.25 : 1)).toFixed(1)}</b></div>`).join('');
   }
-  if (b.type === 'tent' || b.type === 'cabin') {
+  if (d.cap) {
+    body += `<div class="kv"><span>Holding</span><b>${b.out.length}/${d.cap}</b></div><div class="kv"><span>Contents</span><b>${itemCounts(b.out)}</b></div>`;
+    if (b.type === 'store') body += `<div class="bar"><i class="good" style="width:${(b.out.length / d.cap * 100).toFixed(0)}%"></i></div>`;
+  }
+  if (b.type === 'sorter') {
+    const opts = [['', 'Nothing'], ...unlockedItems().concat(has('sawdust') ? ['sawdust'] : []).map(k => [k, ITEMS[k].name])];
+    body += `<div class="kv"><span>Facing</span><b>${DIR_NAMES[b.dir]}</b></div><h4>Send straight ahead</h4><div class="seg wrap">` +
+      opts.map(([k, n]) => `<button data-act="filter" data-v="${k}" class="${(b.filter || '') === k ? 'on' : ''}" title="${esc(n)}">${k ? itemImg(k) : ''} ${esc(n)}</button>`).join('') +
+      `</div><p class="note">${b.filter ? `${esc(ITEMS[b.filter].name)} go straight ahead; everything else leaves by the sides.` : 'With nothing chosen, everything goes straight ahead.'}</p><div class="row-btns"><button data-act="rotb">Turn</button></div>`;
+  }
+  if (d.beds) {
     const occ = G.workers.filter(w => w.home === b.id);
     body += `<div class="kv"><span>Beds</span><b>${occ.length}/${d.beds}</b></div>` + occ.map(w => `<div class="kv"><span>${esc(w.name)}</span><b>${w.hidden ? 'Asleep' : 'Out'}</b></div>`).join('');
   }
   if (b.type === 'hq') {
-    body += `<p class="note">Open the Mill Ledger to hire staff, research, trade and read your letters.</p><div class="row-btns"><button data-act="open" data-v="overview">Open ledger</button></div>`;
+    body += `<div class="kv"><span>Mill rank</span><b>${RANKS[rankOf()].name}</b></div><p class="note">Open the Mill Ledger to hire staff, research, trade and read your letters.</p><div class="row-btns"><button data-act="open" data-v="overview">Open ledger</button></div>`;
   }
   const demo = b.type !== 'hq' ? `<div class="row-btns"><button data-act="demolish" class="danger">${confirming('demo' + b.id) ? 'Click again to demolish' : `Demolish (+${fmt(Math.floor(d.cost / 2))})`}</button></div>` : '';
-  return `<h3>${esc(d.name)}<button class="x" data-act="close" aria-label="Close">×</button></h3><div class="ins-body">${st}<p class="desc">${esc(d.desc)}</p>${body}${demo}</div>`;
+  return `<h3>${esc(d.name)}${(b.lvl || 1) > 1 ? ` <small>${MK[b.lvl]}</small>` : ''}<button class="x" data-act="close" aria-label="Close">×</button></h3><div class="ins-body">${st}<p class="desc">${esc(d.desc)}</p>${body}${demo}</div>`;
 }
 function inspectTree(t) {
   const sp = TREE_SPECIES[t.sp];
@@ -467,6 +498,7 @@ function panelOverview() {
       <div class="kv"><span>Spent to date</span><b>${coin(G.stats.spent)}</b></div>
       <div class="kv"><span>Wages per day</span><b>${coin(wages)}</b></div>
       <div class="kv"><span>Reputation</span><b>${G.rep >= 0 ? '+' : ''}${G.rep}</b></div>
+      <div class="kv"><span>Mill rank</span><b>${RANKS[rankOf()].name}</b></div>
       <canvas id="chart-money" width="300" height="70" aria-label="Cash over recent days"></canvas>
     </section>
     <section><h4>Forest</h4>
@@ -478,15 +510,18 @@ function panelOverview() {
       <canvas id="chart-forest" width="300" height="70" aria-label="Forest cover over recent days"></canvas>
     </section>
     <section><h4>Market prices</h4>
-      ${Object.keys(ITEMS).map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name}</span><b>${marketPrice(k).toFixed(1)} ${trend(k)}</b></div>`).join('')}
+      ${shownItems().map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name}</span><b>${marketPrice(k).toFixed(1)} ${trend(k)}</b></div>`).join('')}
       ${G.rivalFlood ? `<p class="note bad">${RIVAL} is undercutting ${ITEMS[G.rivalFlood.item].name.toLowerCase()}.</p>` : ''}
     </section>
     <section><h4>Production</h4>
       <div class="kv"><span>Power</span><b>${Math.round(dem)} used / ${Math.round(sup)} made</b></div>
-      ${Object.keys(ITEMS).filter(k => k !== 'log').map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name} made</span><b>${G.stats.made[k] || 0}</b></div>`).join('')}
+      ${shownItems().filter(k => k !== 'log').map(k => `<div class="kv"><span>${itemImg(k)} ${ITEMS[k].name} made</span><b>${G.stats.made[k] || 0}</b></div>`).join('')}
+      <div class="kv"><span>Buildings</span><b>${G.buildings.length}</b></div>
       <div class="kv"><span>Secrets found</span><b>${G.stats.secrets}/${G.secrets.length}</b></div>
     </section></div>`;
 }
+// goods the player can make or has made, in the order ITEMS lists them
+function shownItems() { const u = unlockedItems(); return Object.keys(ITEMS).filter(k => u.includes(k) || G.stats.made[k] || G.stats.sold[k]); }
 function drawCharts() {
   const h = G.stats.history;
   const draw = (id, key, col, fixedMax) => {
@@ -525,17 +560,31 @@ function panelHire() {
       <button class="go" data-act="hire" data-id="${c.id}">Hire</button></div>`;
   }).join('') + '</div>';
 }
+function rankProgress() {
+  const r = rankOf(), next = RANKS[r + 1], rev = G.stats.revenue;
+  if (!next) return { r, frac: 1, text: 'The top rank' };
+  const lo = RANKS[r].need;
+  return { r, next, frac: clamp((rev - lo) / (next.need - lo), 0, 1), text: `${fmt(rev)} / ${fmt(next.need)} sold` };
+}
 function panelResearch() {
-  const a = G.research.active;
-  return `<div class="research">` + RESEARCH.map(r => {
-    const done = has(r.id), active = a && a.id === r.id, locked = r.req && !has(r.req);
+  const a = G.research.active, rp = rankProgress();
+  const card = (r) => {
+    const done = has(r.id), active = a && a.id === r.id, missing = reqList(r).filter(x => !has(x)), low = rankOf() < (r.rank || 0);
     let ctl;
     if (done) ctl = '<span class="done">Researched</span>';
     else if (active) ctl = `<div class="bar"><i class="good" style="width:${(a.prog * 100).toFixed(0)}%"></i></div>`;
-    else if (locked) ctl = `<span class="lock">Needs ${RESEARCH.find(x => x.id === r.req).name}</span>`;
+    else if (low) ctl = `<span class="lock">Needs the rank of ${esc(RANKS[r.rank].name)}</span>`;
+    else if (missing.length) ctl = `<span class="lock">Needs ${missing.map(x => esc(researchName(x))).join(' and ')}</span>`;
     else ctl = `<button class="go" data-act="research" data-v="${r.id}" ${a ? 'disabled' : ''}>Research ${coin(r.cost)}</button>`;
-    return `<div class="rcard ${done ? 'is-done' : ''}"><b>${esc(r.name)}</b><p>${esc(r.desc)}</p><small>${r.days} day${r.days === 1 ? '' : 's'}</small>${ctl}</div>`;
-  }).join('') + '</div>';
+    return `<div class="rcard ${done ? 'is-done' : ''} ${low ? 'is-locked' : ''}"><b>${esc(r.name)}</b><p>${esc(r.desc)}</p><small>${r.days} day${r.days === 1 ? '' : 's'}</small>${ctl}</div>`;
+  };
+  const head = `<div class="rankbox"><div><b>${esc(RANKS[rp.r].name)}</b> <span>Mill rank ${rp.r + 1} of ${RANKS.length}</span></div>
+    <div class="bar"><i class="good" style="width:${(rp.frac * 100).toFixed(0)}%"></i></div>
+    <small>${rp.next ? `${rp.text} to become a ${esc(rp.next.name)}` : 'Your mill has reached the top rank.'}</small></div>`;
+  return head + RANKS.map((k, i) => {
+    const list = RESEARCH.filter(r => (r.rank || 0) === i);
+    return list.length ? `<h4 class="rhead">${esc(k.name)}${i ? ` <small>${fmt(k.need)} sold</small>` : ''}</h4><div class="research">${list.map(card).join('')}</div>` : '';
+  }).join('');
 }
 function panelTrade() {
   const offers = G.offers.map(o => {
@@ -598,8 +647,8 @@ function panelPolicies() {
   const p = G.policy;
   return `<div class="policies">
     <label class="pol"><input type="checkbox" id="pol-autochop" data-act="pol" data-v="autoChop" ${p.autoChop ? 'checked' : ''}><span><b>Fell grown trees near camp</b>Lumberjacks fell mature and old trees by themselves when nothing is marked.</span></label>
-    <label class="pol"><span><b>Felling radius: ${p.chopRadius} tiles</b>How far from the Mill Office lumberjacks will go.</span><input type="range" id="pol-radius" min="6" max="30" value="${p.chopRadius}" data-act="radius"></label>
-    <label class="pol"><input type="checkbox" id="pol-replant" data-act="pol" data-v="replant" ${p.replant ? 'checked' : ''}><span><b>Replant stumps</b>Arborists plant a sapling on each fresh stump near camp (${fmt(TOOLS.plant.cost)} each).</span></label>
+    <label class="pol"><span><b>Felling radius: ${p.chopRadius} tiles</b>How far from the Mill Office lumberjacks will go. Logging camps add up to 11 tiles around themselves.</span><input type="range" id="pol-radius" min="6" max="30" value="${p.chopRadius}" data-act="radius"></label>
+    <label class="pol"><input type="checkbox" id="pol-replant" data-act="pol" data-v="replant" ${p.replant ? 'checked' : ''}><span><b>Replant stumps</b>Arborists plant a sapling on each fresh stump near camp and your logging camps (${fmt(plantCost())} each).</span></label>
     <label class="pol"><input type="checkbox" id="pol-explore" data-act="pol" data-v="explore" ${p.explore ? 'checked' : ''}><span><b>Arborists explore</b>Idle arborists wander to the edge of the known forest.</span></label>
     <div class="pol"><span><b>Sapling species</b>What arborists plant.</span><div class="seg">${sp.map(s => `<button data-act="species" data-v="${s}" class="${G.plantSpecies === s ? 'on' : ''}">${TREE_SPECIES[s].name}</button>`).join('')}</div></div>
   </div>`;
@@ -645,6 +694,10 @@ function onAction(e) {
     case 'firew': if (askConfirm('fire' + id)) { const x = G.workers.find(o => o.id === id); if (x) { fireWorker(x); toast(`${x.name} has left the mill.`); } } break;
     case 'selw': { const x = G.workers.find(o => o.id === +v); if (x) { G.tutor.selected = true; UI.sel = { kind: 'worker', ref: x }; UI.insTab = 'summary'; centerOn(x.x, x.y); } break; }
     case 'recipe': bd.recipe = v; bd.prog = 0; break;
+    case 'upgrade': upgradeMachine(bd); break;
+    case 'byp': bd.byOn = !bd.byOn; break;
+    case 'filter': bd.filter = ITEMS[v] ? v : null; break;
+    case 'rotb': bd.dir = (bd.dir + 1) % 4; break;
     case 'demolish': if (askConfirm('demo' + bd.id)) { removeBuilding(bd); UI.sel = null; } break;
     case 'marktree': UI.sel.ref.mark = !UI.sel.ref.mark; break;
     case 'rotbelt': UI.sel.ref.dir = (UI.sel.ref.dir + 1) % 4; break;
@@ -745,10 +798,10 @@ function initInput() {
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveToFile(); return; }
     keys.add(k);
     if (k === 'escape') { if (UI.tool !== 'select') setTool('select'); else if (UI.panelOpen) closePanel(); else { UI.sel = null; renderInspector(); } closeFlyout(); }
-    if (k === 'r' && UI.tool === 'belt') { UI.beltDir = (UI.beltDir + (e.shiftKey ? 3 : 1)) % 4; updateHint(); }
+    if (k === 'r' && (UI.tool === 'belt' || (BDEF[UI.tool] && BDEF[UI.tool].dir))) { UI.beltDir = (UI.beltDir + (e.shiftKey ? 3 : 1)) % 4; updateHint(); }
     if (k === ' ') { e.preventDefault(); setSpeed(G.speed ? 0 : (UI.lastSpeed || 1)); }
     if (k === 'shift' && (UI.tool === 'chop' || UI.tool === 'plant')) { UI.unmark = true; updateHint(); }
-    const map = { v: 'select', '1': 'camp', '2': 'factory', '3': 'power', c: 'belt', f: 'chop', p: 'plant', t: 'path', b: 'bulldoze', x: 'survey', m: 'mill' };
+    const map = { v: 'select', '1': 'camp', '2': 'factory', '3': 'power', '4': 'logi', c: 'belt', f: 'chop', p: 'plant', t: 'path', b: 'bulldoze', x: 'survey', m: 'mill' };
     if (map[k] && !e.ctrlKey && !e.metaKey) pickTool(map[k]);
     if (k === 'n' && !e.ctrlKey && !e.metaKey) UI.toggleSound();
     if (k === '=' || k === '+' || k === 'e') zoomStep(1);
@@ -816,8 +869,8 @@ function showTip(e, t) {
     if (s) text = `${SECRET_INFO[s.kind].name}: click to investigate`;
     else if (b) {
       const d = BDEF[b.type];
-      const state = b.broken ? 'broken down' : d.machine && b.type !== 'steam' ? (b.active ? 'working' : b.wants ? 'no power' : 'waiting for materials') : b.type === 'steam' ? (b.gen > 0 ? 'running' : 'out of fuel') : '';
-      text = d.name + (state ? `: ${state}` : '');
+      const state = b.broken ? 'broken down' : b.type === 'steam' ? (b.gen > 0 ? 'running' : 'out of fuel') : b.type === 'wheel' ? (b.active ? 'turning' : 'not connected') : d.recipes ? (b.active ? 'working' : b.wants ? 'no power' : 'waiting for materials') : d.cap ? `holding ${b.out.length}` : '';
+      text = d.name + ((b.lvl || 1) > 1 ? ` ${MK[b.lvl]}` : '') + (state ? `: ${state}` : '');
     } else if (G.tree[k] && G.reveal[k]) {
       const tr = G.tree[k];
       text = tr.sp === 'ancient' ? 'The Ancient Oak' : `${TREE_SPECIES[tr.sp].name}, ${tr.dead ? 'dead' : treeStage(tr)}${tr.sick ? ', blighted' : ''}${tr.mark ? ', marked' : ''}`;
@@ -831,7 +884,7 @@ function applyTool(keepTool) {
   if (!h) return;
   if (BDEF[tool]) {
     const d = BDEF[tool];
-    const b = placeBuilding(tool, h.x - Math.floor((d.w - 1) / 2), h.y - Math.floor((d.h - 1) / 2));
+    const b = placeBuilding(tool, h.x - Math.floor((d.w - 1) / 2), h.y - Math.floor((d.h - 1) / 2), false, UI.beltDir);
     if (b && !keepTool) setTool('select'); // one building per pick; Shift keeps the tool for more
     return;
   }
