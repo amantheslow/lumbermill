@@ -499,6 +499,219 @@ function spriteFlowers() {
   }
   return finishBuilding(o);
 }
+// ---------- the bigger mill: later buildings ----------
+const brickL = (x, y) => ((((y - x * 0.5) % 3) + 3) % 3 < 1 || ((x + (Math.floor((y - x * 0.5) / 3) & 1) * 2) % 5 === 0)) ? C('#6d3a2c') : C('#8d4b37');
+const brickR = (x, y) => shade(brickL(x, y), 0.8);
+function spriteKiln() {
+  const o = newBuildingBuf(2, 2, 46), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.15, 0.15, 1.85, 1.85);
+  box(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 0, 14, brickL, brickR, null);
+  // arched firing door, glowing
+  faceLeft(b, ox, oy, 0.75, 1.8, 1.25, 0, 8, C('#2a1a14'));
+  faceLeft(b, ox, oy, 0.85, 1.8, 1.15, 1, 4, C('#e0702a'));
+  faceRight(b, ox, oy, 1.8, 0.6, 1.4, 5, 10, (x, y) => (x % 3 === 0 ? P.woodDD : P.woodD)); // stacked boards inside the vent
+  gableX(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 14, 7, metalRoof(P.roofL), P.roofD, brickR, 0.12);
+  // a tall square chimney
+  const [x, y] = cp(ox, oy, 1.35, 0.55, 18);
+  b.rect(x - 2, y - 16, 5, 18, (xx, yy) => shade(brickL(xx, yy), xx < x ? 1.05 : 0.8));
+  b.rect(x - 3, y - 18, 7, 2, P.stoneD);
+  return finishBuilding(o);
+}
+function spriteBeamsaw() {
+  const o = newBuildingBuf(2, 2, 34), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.1, 0.1, 1.9, 1.9);
+  box(b, ox, oy, 0.1, 0.1, 1.9, 1.9, 0, 3, P.woodD, P.woodDD, (x) => (x % 4 === 0 ? P.woodD : P.woodL));
+  // a long beam on the bed, and the big blade beside it
+  box(b, ox, oy, 0.25, 0.85, 1.75, 1.15, 3, 7, P.log, P.logD, P.logL);
+  faceLeft(b, ox, oy, 0.25, 1.15, 0.27, 3, 7, C('#d8b07a'));
+  const [bx, by] = cp(ox, oy, 1.0, 0.62, 10);
+  b.ellipse(bx, by, 6, 6, P.metalL); b.ellipse(bx, by, 4.5, 4.5, P.metal); b.ellipse(bx, by, 1.5, 1.5, P.metalD);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; b.set(bx + Math.cos(a) * 6.5, by + Math.sin(a) * 6.5, P.metalD); }
+  // posts and a flat roof
+  for (const [tx, ty] of [[0.15, 0.15], [1.85, 0.15], [0.15, 1.85], [1.85, 1.85]]) { const [x, y] = cp(ox, oy, tx, ty, 3); b.rect(x - 1, y - 17, 2, 17, P.woodD); }
+  faceTop(b, ox, oy, 0, 0, 2, 2, 20, SNOW ? SNOW_TOP : metalRoof(P.roof));
+  faceLeft(b, ox, oy, 0, 2, 2, 18, 20, P.roofD); faceRight(b, ox, oy, 2, 0, 2, 18, 20, P.roofDD);
+  return finishBuilding(o);
+}
+function spritePress() {
+  const o = newBuildingBuf(1, 1, 34), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.12, 0.12, 0.88, 0.88);
+  const rivet = (base) => (x, y) => ((x + y) % 7 === 0 ? shade(base, 0.85) : base);
+  box(b, ox, oy, 0.15, 0.15, 0.85, 0.85, 0, 12, rivet(C('#4f7a6e')), rivet(C('#3c5f56')), C('#5e8c7f'));
+  faceLeft(b, ox, oy, 0.3, 0.85, 0.7, 2, 6, P.black);
+  // hopper on top, and the press arm
+  const t0 = cp(ox, oy, 0.25, 0.25, 22), t1 = cp(ox, oy, 0.75, 0.25, 22), t2 = cp(ox, oy, 0.75, 0.75, 22), t3 = cp(ox, oy, 0.25, 0.75, 22);
+  const m0 = cp(ox, oy, 0.4, 0.4, 12), m1 = cp(ox, oy, 0.6, 0.4, 12), m2 = cp(ox, oy, 0.6, 0.6, 12), m3 = cp(ox, oy, 0.4, 0.6, 12);
+  b.poly([t3, t2, m2, m3], C('#c9a24a')); b.poly([t1, t2, m2, m1], C('#a8842f'));
+  b.poly([t0, t1, t2, t3], SNOW ? SNOW_TOP : C('#d8b07a'));
+  const [px, py] = cp(ox, oy, 0.5, 0.85, 12);
+  b.rect(px - 1, py - 4, 2, 4, P.metalL);
+  return finishBuilding(o);
+}
+function spriteJoinery() {
+  const o = newBuildingBuf(3, 2, 48), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.15, 0.15, 2.85, 1.85);
+  const beamL = (x, y) => (x % 8 === 0 || ((y - x * 0.5) % 11 + 11) % 11 < 1) ? P.woodDD : P.plaster;
+  const beamR = (x, y) => (x % 8 === 0 || ((y + x * 0.5) % 11 + 11) % 11 < 1) ? P.woodDD : P.plasterD;
+  box(b, ox, oy, 0.15, 0.15, 2.85, 1.85, 0, 17, beamL, beamR, null);
+  faceLeft(b, ox, oy, 1.1, 1.85, 1.9, 0, 12, (x) => (x % 5 === 0 ? P.woodDD : P.woodD)); // double doors
+  for (const x0 of [0.35, 2.2]) faceLeft(b, ox, oy, x0, 1.85, x0 + 0.4, 7, 12, P.window);
+  faceRight(b, ox, oy, 2.85, 0.5, 1.4, 7, 12, P.window);
+  gableX(b, ox, oy, 0.15, 0.15, 2.85, 1.85, 17, 14, tileRoof(C('#4f7a3f')), C('#3b5e30'), beamR, 0.15);
+  for (const tx of [0.7, 2.2]) {
+    const [x, y] = cp(ox, oy, tx, 0.5, 25);
+    b.rect(x, y - 8, 4, 10, (xx) => xx < x + 2 ? P.stoneL : P.stoneD);
+    b.rect(x - 1, y - 9, 6, 2, P.stoneD);
+  }
+  return finishBuilding(o);
+}
+function spriteShed() {
+  const o = newBuildingBuf(2, 2, 36), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.2, 0.2, 1.8, 1.8);
+  const corr = (base) => (x) => (x % 2 === 0 ? shade(base, 0.82) : base);
+  box(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 0, 13, corr(C('#6f8f9a')), corr(C('#55717b')), null);
+  faceLeft(b, ox, oy, 0.6, 1.8, 1.4, 0, 10, (x, y) => (y % 3 === 0 ? P.metalD : P.metal)); // roller door
+  gableY(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 13, 9, metalRoof(P.roofL), P.roofD, corr(C('#55717b')), 0.12);
+  // a spanner sign by the door
+  const [sx, sy] = cp(ox, oy, 1.6, 1.8, 11);
+  b.rect(sx - 3, sy - 3, 6, 5, P.gold); b.rect(sx - 2, sy - 1, 4, 1, P.black); b.set(sx - 2, sy - 2, P.black); b.set(sx + 1, sy, P.black);
+  return finishBuilding(o);
+}
+function spriteSplitter() {
+  const o = newBuildingBuf(1, 1, 14), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.12, 0.12, 0.88, 0.88);
+  box(b, ox, oy, 0.15, 0.15, 0.85, 0.85, 0, 6, P.metalD, shade(P.metalD, 0.8), (x, y) => (Math.floor((x + y * 2) / 3) & 1 ? C('#e2b12a') : P.black));
+  const [cx, cy] = cp(ox, oy, 0.5, 0.5, 6);
+  b.ellipse(cx, cy, 3.5, 2, P.metalL); b.ellipse(cx, cy, 2, 1, P.metal);
+  return finishBuilding(o);
+}
+function spriteSorter() {
+  const o = newBuildingBuf(1, 1, 14), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.12, 0.12, 0.88, 0.88);
+  box(b, ox, oy, 0.15, 0.15, 0.85, 0.85, 0, 6, P.tealD, shade(P.tealD, 0.8), P.tealL);
+  faceLeft(b, ox, oy, 0.15, 0.85, 0.85, 4, 5, C('#e2b12a'));
+  return finishBuilding(o);
+}
+function spriteStore() {
+  const o = newBuildingBuf(2, 2, 42), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.15, 0.15, 1.85, 1.85);
+  box(b, ox, oy, 0.15, 0.15, 1.85, 1.85, 0, 16, plankL(C('#a8473a')), plankL(C('#86372d')), null);
+  // big barn door with a white cross brace
+  faceLeft(b, ox, oy, 0.55, 1.85, 1.45, 0, 13, plankL(C('#8f3b30')));
+  const [d0x, d0y] = cp(ox, oy, 0.55, 1.85, 0), [d1x, d1y] = cp(ox, oy, 1.45, 1.85, 13), [d2x, d2y] = cp(ox, oy, 0.55, 1.85, 13), [d3x, d3y] = cp(ox, oy, 1.45, 1.85, 0);
+  b.line(d0x, d0y - 1, d1x, d1y, P.white); b.line(d2x, d2y, d3x, d3y - 1, P.white);
+  faceRight(b, ox, oy, 1.85, 0.7, 1.3, 9, 13, P.window);
+  gableY(b, ox, oy, 0.15, 0.15, 1.85, 1.85, 16, 13, metalRoof(P.roof), P.roofD, plankL(C('#86372d')), 0.15);
+  return finishBuilding(o);
+}
+function spriteLcamp() {
+  const o = newBuildingBuf(2, 2, 32), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.1, 0.1, 1.9, 1.9);
+  // a small log hut at the back, a log pile out front
+  box(b, ox, oy, 0.15, 0.15, 1.0, 1.85, 0, 11, logWallL(P.woodL), logWallR(P.wood), null);
+  faceRight(b, ox, oy, 1.0, 0.7, 1.15, 0, 8, P.woodDD);
+  gableY(b, ox, oy, 0.15, 0.15, 1.0, 1.85, 11, 8, tileRoof(C('#6a6a3a')), C('#4f4f2a'), logWallR(shade(P.wood, 0.85)), 0.12);
+  const spots = [[1.3, 1.0], [1.6, 1.0], [1.3, 1.35], [1.6, 1.35], [1.3, 1.7], [1.6, 1.7], [1.45, 1.17], [1.45, 1.52]];
+  spots.forEach(([tx, ty], i) => { const [x, y] = cp(ox, oy, tx, ty, i > 5 ? 6 : 2); b.ellipse(x, y, 3, 2.2, P.logD); b.ellipse(x, y - 0.5, 2, 1.4, P.logL); });
+  // a stuck axe
+  const [ax, ay] = cp(ox, oy, 1.55, 0.4, 0);
+  b.rect(ax - 2, ay - 3, 5, 3, P.logD); b.line(ax, ay - 3, ax + 2, ay - 9, P.woodL); b.rect(ax + 1, ay - 10, 3, 2, P.metalL);
+  return finishBuilding(o);
+}
+function spriteDock() {
+  const o = newBuildingBuf(2, 2, 44), { b, ox, oy } = o;
+  for (const [tx, ty] of [[0.1, 0.1], [1.9, 0.1], [0.1, 1.9], [1.9, 1.9], [1.0, 1.9], [1.9, 1.0]]) { const [x, y] = cp(ox, oy, tx, ty, 0); b.rect(x - 1, y - 5, 2, 7, P.woodDD); }
+  faceTop(b, ox, oy, 0.05, 0.05, 1.95, 1.95, 5, (x) => (x % 3 === 0 ? P.woodD : P.woodL));
+  faceLeft(b, ox, oy, 0.05, 1.95, 1.95, 3, 5, P.woodD); faceRight(b, ox, oy, 1.95, 0.05, 1.95, 3, 5, P.woodDD);
+  const crate = (tx, ty, z) => box(b, ox, oy, tx, ty, tx + 0.38, ty + 0.38, z, z + 7, plankL(C('#c9995d')), plankL(C('#a87b45')), C('#dcb27a'));
+  crate(0.3, 1.2, 5); crate(0.72, 1.3, 5); crate(0.4, 1.3, 12);
+  // a crane with a hook and a bundle of boards
+  const [cx, cy] = cp(ox, oy, 0.5, 0.5, 5);
+  b.rect(cx - 1, cy - 34, 3, 34, (x) => (x === cx - 1 ? P.woodL : P.woodD));
+  const [ex, ey] = cp(ox, oy, 1.5, 0.5, 39);
+  b.line(cx, cy - 34, ex, ey, P.woodD); b.line(cx, cy - 33, ex, ey + 1, P.woodDD);
+  b.line(ex, ey + 1, ex, ey + 14, P.black);
+  b.rect(ex - 4, ey + 14, 8, 3, C('#c98a52')); b.rect(ex - 4, ey + 17, 8, 1, C('#8f5a30'));
+  // mooring bollard
+  const [mx, my] = cp(ox, oy, 1.75, 1.75, 5); b.rect(mx - 1, my - 3, 3, 3, P.black); b.rect(mx - 2, my - 4, 5, 1, P.metalD);
+  return finishBuilding(o);
+}
+function spriteWheel() { // the mill house; the wheel itself is drawn by render() on whichever side meets the water
+  const o = newBuildingBuf(2, 2, 42), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.2, 0.2, 1.8, 1.8);
+  box(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 0, 4, (x, y) => (hash2(x >> 1, y >> 1, 7) < 0.4 ? P.stoneL : P.stone), P.stoneD, null);
+  box(b, ox, oy, 0.3, 0.3, 1.7, 1.7, 4, 17, plankL(P.woodL), plankL(P.wood), null);
+  faceLeft(b, ox, oy, 0.8, 1.7, 1.2, 4, 12, P.woodDD);
+  faceRight(b, ox, oy, 1.7, 0.7, 1.1, 9, 13, P.window);
+  gableX(b, ox, oy, 0.3, 0.3, 1.7, 1.7, 17, 10, tileRoof(P.red), P.redD, plankL(shade(P.wood, 0.85)), 0.12);
+  return finishBuilding(o);
+}
+function spritePylon() {
+  const b = new PixBuf(22, 52), cx = 11, base = 49;
+  b.ellipse(cx + 1, base, 6, 2, SHADOW);
+  const top = base - 40;
+  b.line(cx - 6, base, cx - 1, top, P.metalD); b.line(cx + 6, base, cx + 1, top, P.metal);
+  b.line(cx - 5, base - 1, cx, top, P.metalD); b.line(cx + 5, base - 1, cx, top, P.metal);
+  for (let k = 1; k < 5; k++) { const y = base - k * 8, half = Math.round(6 - k * 1.2); b.line(cx - half, y, cx + half, y, P.metalD); b.line(cx - half, y, cx + half, y - 8 > top ? y - 8 : top, P.metalD); }
+  b.rect(cx - 9, top + 2, 19, 2, P.metalD);
+  for (const x of [cx - 9, cx - 4, cx + 4, cx + 9]) { b.set(x, top + 1, C('#9fd1d6')); b.set(x, top + 4, C('#9fd1d6')); }
+  b.rect(cx - 1, top - 3, 3, 3, P.redD);
+  return { cv: b.toCanvas(), ax: cx, ay: base };
+}
+function spriteBunkhouse() {
+  const o = newBuildingBuf(3, 2, 40), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.2, 0.2, 2.8, 1.8);
+  box(b, ox, oy, 0.2, 0.2, 2.8, 1.8, 0, 13, logWallL(P.woodL), logWallR(P.wood), null);
+  faceLeft(b, ox, oy, 1.3, 1.8, 1.7, 0, 10, P.woodDD);
+  for (const x0 of [0.4, 0.85, 2.0, 2.4]) faceLeft(b, ox, oy, x0, 1.8, x0 + 0.25, 5, 9, P.window);
+  faceRight(b, ox, oy, 2.8, 0.6, 1.1, 5, 9, P.window);
+  gableX(b, ox, oy, 0.2, 0.2, 2.8, 1.8, 13, 11, tileRoof(C('#5a6a8a')), C('#44506a'), logWallR(shade(P.wood, 0.85)), 0.15);
+  const [x, y] = cp(ox, oy, 2.3, 0.55, 20);
+  b.rect(x, y - 6, 3, 8, (xx) => xx < x + 1 ? P.metalL : P.metalD);
+  return finishBuilding(o);
+}
+function spriteCookhouse() {
+  const o = newBuildingBuf(2, 2, 42), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.2, 0.2, 1.8, 1.8);
+  box(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 0, 13, plankL(C('#d8c6a0')), plankL(C('#b9a682')), null);
+  faceLeft(b, ox, oy, 0.85, 1.8, 1.2, 0, 9, P.woodD);
+  faceLeft(b, ox, oy, 0.35, 1.8, 0.65, 5, 9, P.window); faceLeft(b, ox, oy, 1.4, 1.8, 1.7, 5, 9, P.window);
+  // striped awning over the door
+  faceLeft(b, ox, oy, 0.7, 1.95, 1.35, 9, 11, (x) => (Math.floor(x / 2) & 1 ? P.white : P.red));
+  gableX(b, ox, oy, 0.2, 0.2, 1.8, 1.8, 13, 10, tileRoof(C('#b86a35')), C('#8f4f26'), plankL(C('#b9a682')), 0.15);
+  const [x, y] = cp(ox, oy, 0.5, 0.6, 18);
+  b.rect(x - 1, y - 9, 5, 11, (xx) => xx < x + 1 ? P.stoneL : P.stoneD);
+  b.rect(x - 2, y - 10, 7, 2, P.stoneD);
+  return finishBuilding(o);
+}
+function spriteLookout() {
+  const o = newBuildingBuf(1, 1, 60), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.1, 0.1, 0.9, 0.9);
+  const Z = 38;
+  const legs = [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]];
+  for (const [tx, ty] of legs) { const [x0, y0] = cp(ox, oy, tx, ty, 0), [x1, y1] = cp(ox, oy, 0.25 + tx * 0.5, 0.25 + ty * 0.5, Z); b.line(x0, y0, x1, y1, P.woodD); b.line(x0 + 1, y0, x1 + 1, y1, P.woodDD); }
+  for (const z of [12, 26]) { const s = 0.1 + z / Z * 0.15, e = 1 - s; const [a, c] = [cp(ox, oy, s, e, z), cp(ox, oy, e, e, z)]; b.line(a[0], a[1], c[0], c[1], P.woodD); const d = cp(ox, oy, e, s, z); b.line(c[0], c[1], d[0], d[1], P.woodDD); }
+  box(b, ox, oy, 0.2, 0.2, 0.8, 0.8, Z, Z + 9, plankL(P.woodL), plankL(P.wood), null);
+  faceLeft(b, ox, oy, 0.3, 0.8, 0.7, Z + 4, Z + 8, P.window);
+  faceRight(b, ox, oy, 0.8, 0.3, 0.7, Z + 4, Z + 8, P.window);
+  gableX(b, ox, oy, 0.2, 0.2, 0.8, 0.8, Z + 9, 7, tileRoof(P.red), P.redD, P.redD, 0.1);
+  return finishBuilding(o);
+}
+function spriteNursery() {
+  const o = newBuildingBuf(2, 2, 34), { b, ox, oy } = o;
+  groundShadow(b, ox, oy, 0.15, 0.15, 1.85, 1.85);
+  faceTop(b, ox, oy, 0.15, 0.15, 1.85, 1.85, 1, C('#5a3a28'));
+  // rows of saplings inside, seen through the glass
+  const r = makeRng(7);
+  for (let i = 0; i < 22; i++) { const [x, y] = cp(ox, oy, 0.3 + r() * 1.4, 0.3 + r() * 1.4, 2); b.set(x, y, C('#7a5a3a')); b.set(x, y - 1, C('#5bb75f')); b.set(x - 1, y - 2, C('#3f9b49')); b.set(x + 1, y - 2, C('#3f9b49')); b.set(x, y - 3, C('#5bb75f')); }
+  const glass = (base) => (x, y) => (x % 6 === 0 ? P.metalL : hash2(x, y, 11) < 0.04 ? C('#d8eef5') : base);
+  const tint = (c) => (x, y) => { const v = glass(c)(x, y); return v === c ? 0 : v; }; // frame only on the near walls, so the plants show
+  faceLeft(b, ox, oy, 0.15, 1.85, 1.85, 0, 12, tint(1)); faceRight(b, ox, oy, 1.85, 0.15, 1.85, 0, 12, tint(1));
+  faceLeft(b, ox, oy, 0.15, 1.85, 1.85, 0, 1, P.metalD); faceLeft(b, ox, oy, 0.15, 1.85, 1.85, 11, 12, P.metalL);
+  faceRight(b, ox, oy, 1.85, 0.15, 1.85, 0, 1, P.metalD); faceRight(b, ox, oy, 1.85, 0.15, 1.85, 11, 12, P.metalL);
+  gableX(b, ox, oy, 0.15, 0.15, 1.85, 1.85, 12, 9, glass(C('#7fb8c8')), C('#6aa3b5'), glass(C('#8cc2d0')), 0.08);
+  return finishBuilding(o);
+}
 // a conveyor tile; when inDir differs from dir it is a corner: items enter heading inDir and leave heading dir
 function spriteBelt(dir, frame, inDir = dir) {
   const b = new PixBuf(32, 20);
@@ -546,6 +759,20 @@ function spriteItem(type) {
     b.rect(3, 5, 6, 2, P.woodL); b.rect(8, 7, 1, 2, P.woodD); b.rect(5, 7, 1, 2, P.woodD);
   } else if (type === 'table') {
     b.rect(1, 3, 10, 2, C('#b07a48')); b.rect(1, 5, 10, 1, P.woodD); b.rect(2, 6, 1, 3, P.woodD); b.rect(9, 6, 1, 3, P.woodD);
+  } else if (type === 'sawdust') {
+    b.ellipse(6, 6.5, 3.5, 2.8, C('#e2cfa0')); b.ellipse(6, 7, 3, 2, C('#cdb684')); b.rect(5, 2, 3, 2, C('#e2cfa0')); b.rect(5, 4, 3, 1, C('#8a6a3a'));
+  } else if (type === 'pellet') {
+    b.rect(3, 3, 6, 6, C('#4f7a3f')); b.rect(3, 3, 6, 1, C('#6a9a52')); b.rect(4, 5, 4, 2, C('#e2cfa0')); b.set(5, 5, C('#8a6a3a')); b.set(7, 6, C('#8a6a3a'));
+  } else if (type === 'board') {
+    for (let k = 0; k < 2; k++) for (let i = -4; i <= 3; i++) { b.set(6 + i, 6 + Math.round(i * 0.5) - k * 2, C('#c98a52')); b.set(6 + i, 7 + Math.round(i * 0.5) - k * 2, C('#8f5a30')); }
+  } else if (type === 'beam') {
+    for (let i = -5; i <= 4; i++) for (let t = -1; t <= 1; t++) b.set(6 + i, 5 + Math.round(i * 0.5) + t, t < 0 ? C('#e0b67d') : t === 0 ? C('#b98d55') : C('#8a6438'));
+    b.rect(10, 6, 2, 3, C('#d8b07a'));
+  } else if (type === 'cabinet') {
+    b.rect(3, 1, 7, 8, C('#8f5a30')); b.rect(4, 2, 2, 6, C('#b07a48')); b.rect(7, 2, 2, 6, C('#b07a48')); b.set(6, 5, P.gold); b.set(7, 5, P.gold); b.rect(3, 9, 1, 1, P.woodDD); b.rect(9, 9, 1, 1, P.woodDD);
+  } else if (type === 'kit') {
+    for (let k = 0; k < 3; k++) for (let i = -5; i <= 4; i++) { b.set(6 + i, 6 + Math.round(i * 0.5) - k * 2, k === 1 ? C('#c98a52') : C('#e0b67d')); b.set(6 + i, 7 + Math.round(i * 0.5) - k * 2, C('#8a6438')); }
+    b.rect(3, 1, 1, 7, C('#d65a4f')); b.rect(8, 3, 1, 7, C('#d65a4f'));
   }
   return { cv: b.toCanvas(), ax: 6, ay: 8 };
 }
@@ -574,6 +801,14 @@ function spriteSecret(kind) {
       b.rect(x, y, 1, 2, P.white); b.rect(x - 1, y - 1, 3, 1, i % 3 ? C('#d0403a') : C('#e0a040')); b.set(x, y - 1, P.white);
     }
     return { cv: b.toCanvas(), ax: 14, ay: 9 };
+  }
+  if (kind === 'journal') { // a weathered notebook lying open on a stump
+    const b = new PixBuf(16, 14);
+    b.ellipse(8, 11, 6, 2.5, SHADOW);
+    b.rect(4, 8, 8, 3, P.woodD); b.ellipse(8, 8, 4, 1.5, C('#c49a6c'));
+    b.rect(3, 5, 5, 3, C('#efe2c4')); b.rect(8, 5, 5, 3, C('#e2d3ae')); b.rect(8, 5, 1, 3, C('#7a5a3a'));
+    b.rect(4, 6, 3, 1, C('#8a7a66')); b.rect(9, 6, 3, 1, C('#8a7a66'));
+    return { cv: b.toCanvas(), ax: 8, ay: 11 };
   }
   // blueprint cache: a wooden lockbox with paper
   const b = new PixBuf(16, 14);
@@ -605,6 +840,8 @@ function buildIcons() {
   const speaker = (b) => { b.rect(2, 6, 3, 4, cream); b.poly([[5, 6], [9, 2], [9, 14], [5, 10]], cream); };
   I.soundOn = iconCanvas(b => { speaker(b); b.rect(11, 5, 1, 6, cream); b.rect(13, 3, 1, 10, cream); });
   I.soundOff = iconCanvas(b => { speaker(b); b.line(11, 5, 15, 10, red); b.line(15, 5, 11, 10, red); });
+  I.fire = iconCanvas(b => { b.poly([[8, 1], [13, 9], [12, 14], [4, 14], [3, 9]], C('#e2502a')); b.poly([[8, 6], [11, 11], [10, 14], [6, 14], [5, 11]], C('#f5c518')); });
+  I.logi = iconCanvas(b => { b.rect(1, 7, 6, 2, cream); b.rect(6, 3, 2, 10, cream); b.rect(8, 3, 5, 2, cream); b.rect(8, 11, 5, 2, cream); b.poly([[12, 1], [15, 4], [12, 7]], C('#e2b12a')); b.poly([[12, 9], [15, 12], [12, 15]], C('#e2b12a')); });
   I.research = iconCanvas(b => { b.rect(6, 1, 4, 5, cream); b.poly([[6, 6], [10, 6], [14, 14], [2, 14]], cream); b.poly([[4.5, 10], [11.5, 10], [14, 14], [2, 14]], C('#5bb75f')); });
   return I;
 }
@@ -638,6 +875,7 @@ function bakeArt() {
     }
   }
   ART.dead = [0, 1, 2].map(makeDeadTree);
+  ART.charred = ART.dead.map(s => ({ cv: recolour(s.cv, c => { const [r, g, b, a] = unpack(c); return a < 200 ? c : pack(r * 0.35 + 8, g * 0.3 + 6, b * 0.3 + 6, a); }), ax: s.ax, ay: s.ay }));
   ART.deadFog = ART.dead.map(fogify);
   ART.fallen = makeFallenLog(); ART.stump = makeStump();
   const buildings = () => ({
@@ -645,14 +883,17 @@ function bakeArt() {
     tent: [0, 1, 2].map(spriteTent), well: spriteWell(), outhouse: spriteOuthouse(), campfire: spriteCampfire(),
     intake: [0, 1, 2].map(spriteIntake), sawmill: spriteSawmill(), workshop: spriteWorkshop(), depot: spriteDepot(),
     steam: spriteSteam(), solar: spriteSolar(), pole: spritePole(), cabin: spriteCabin(), flowers: spriteFlowers(),
+    kiln: spriteKiln(), beamsaw: spriteBeamsaw(), press: spritePress(), joinery: spriteJoinery(), shed: spriteShed(),
+    splitter: spriteSplitter(), sorter: spriteSorter(), store: spriteStore(), lcamp: spriteLcamp(), dock: spriteDock(),
+    wheel: spriteWheel(), pylon: spritePylon(), bunkhouse: spriteBunkhouse(), cookhouse: spriteCookhouse(), lookout: spriteLookout(), nursery: spriteNursery(),
   });
   ART.b = buildings();
   SNOW = true; ART.bWinter = buildings(); SNOW = false;
   ART.belt = [0, 1, 2, 3].map(d => [0, 1, 2, 3].map(f => spriteBelt(d, f)));
   // corners: ART.beltCorner[inDir][dir][frame]
   ART.beltCorner = [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(d => (d === i || d === (i + 2) % 4) ? null : [0, 1, 2, 3].map(f => spriteBelt(d, f, i))));
-  ART.items = {}; for (const t of ['log', 'plank', 'crate', 'chair', 'table']) ART.items[t] = spriteItem(t);
-  ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint']) ART.secret[k] = spriteSecret(k);
+  ART.items = {}; for (const t of Object.keys(ITEMS)) ART.items[t] = spriteItem(t);
+  ART.secret = {}; for (const k of ['chest', 'ruin', 'mushrooms', 'blueprint', 'journal']) ART.secret[k] = spriteSecret(k);
   ART.icons = buildIcons();
   ART.itemIcons = {}; for (const t of Object.keys(ART.items)) ART.itemIcons[t] = ART.items[t].cv.toDataURL();
 }

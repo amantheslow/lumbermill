@@ -49,11 +49,24 @@ function startNew() {
     setTimeout(() => { delete b.dataset.sure; setupTitle(); }, 4000);
     return;
   }
+  beginPlay();
+}
+function beginPlay() {
   $('#title').hidden = true; playing = true;
-  setSpeed(1);
+  setSpeed(tutorialActive() ? 0 : 1); // the walkthrough starts with the clock stopped
   lastAutoDay = dayOf();
   const c = bCenter(G.hq); centerOn(c.x + 1, c.y + 1);
-  toast('Your crew is ready. Follow the tutorial on the left.', 'good');
+  if (tutorialActive()) R.cam.y -= 40; // keep the camp clear of the coach card
+  updateHud();
+}
+// throw away the current mill and begin again on a new island, walkthrough and all
+function startFresh() {
+  newWorld((Math.random() * 1e9) >>> 0);
+  closePanel(); closeFlyout(); setTool('select');
+  $('#help').hidden = true; $('#ending').hidden = true;
+  UI.confirm = null; UI.letterSel = null; coachKey = ''; R.ring = null; R.fireflies.length = 0;
+  beginPlay();
+  autoSave(); // the new mill becomes what Continue loads
 }
 
 function boot() {
@@ -81,6 +94,7 @@ function boot() {
 }
 
 function frame(now) {
+  requestAnimationFrame(frame); // scheduled first, so an error in one frame can't stop the game
   const dt = Math.min(0.1, lastFrame ? (now - lastFrame) / 1000 : 0);
   lastFrame = now;
   if (playing && G.speed > 0) {
@@ -94,9 +108,9 @@ function frame(now) {
   updateAmbience(dt, playing);
   panKeys(dt);
   render(now);
+  updatePointer();
   uiAcc += dt;
   if (uiAcc > 0.25) { uiAcc = 0; uiTick(); }
-  requestAnimationFrame(frame);
 }
 
 window.addEventListener('DOMContentLoaded', boot);

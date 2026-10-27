@@ -147,7 +147,8 @@ function rebuildGround() {
 
 // ---------- camera ----------
 function worldToScreen(wx, wy) { return [wx + R.ox, wy + R.oy]; }
-function screenToWorld(cssX, cssY) { return [cssX / R.cam.s - R.ox, cssY / R.cam.s - R.oy]; }
+// from the camera itself rather than the last drawn frame, so a click right after the view moves lands where you aimed
+function screenToWorld(cssX, cssY) { return [cssX / R.cam.s - Math.round(R.cv.width / 2 - R.cam.x), cssY / R.cam.s - Math.round(R.cv.height / 2 - R.cam.y)]; }
 function tileAtCss(cssX, cssY) { const [wx, wy] = screenToWorld(cssX, cssY); const t = screenToTile(wx, wy); return { x: Math.floor(t.x), y: Math.floor(t.y), fx: t.x, fy: t.y }; }
 // zoom levels: on high-density screens half steps stay crisp (1.5 art px = 3 device px), elsewhere whole steps only
 function zoomLevels() { return R.dpr >= 2 ? [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6] : [1, 2, 3, 4, 5, 6]; }
@@ -245,12 +246,14 @@ function render(now) {
     }
   }
   drawWires(ctx);
+  drawTutorial(ctx, time);
   // particles
   for (const f of G.fx) {
     const sx = f.x + ox, sy = f.y + oy;
     if (f.k === 'puff') { const a = clamp(f.life / f.max, 0, 1) * 0.7; ctx.fillStyle = f.col + a + ')'; const r = (1 - f.life / f.max) * 3 + 1.5; ctx.fillRect(Math.round(sx - r), Math.round(sy - r), Math.round(r * 2), Math.round(r * 2)); }
     else if (f.k === 'chip') { ctx.fillStyle = f.col; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1); }
     else if (f.k === 'spark') { ctx.fillStyle = '#ffe28a'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 1); }
+    else if (f.k === 'water') { ctx.fillStyle = '#9fd1ff'; ctx.fillRect(Math.round(sx), Math.round(sy), 1, 2); }
     else if (f.k === 'z') { ctx.fillStyle = 'rgba(230,236,255,' + clamp(f.life, 0, 1) + ')'; const x = Math.round(sx), y = Math.round(sy); ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 1, y + 1, 1, 1); ctx.fillRect(x, y + 2, 3, 1); }
   }
   drawWeather(ctx, time);
@@ -263,7 +266,7 @@ function drawTree(ctx, t, sx, sy, fog, time) {
   const st = treeStage(t);
   let s;
   const set = ART.seasons[R.season];
-  if (t.dead) { s = t.fallen ? ART.fallen : (fog ? ART.deadFog : ART.dead)[t.v]; if (R.season === 3 && !fog) s = winterOf(s); }
+  if (t.dead) { s = t.fallen ? ART.fallen : (fog ? ART.deadFog : t.charred ? ART.charred : ART.dead)[t.v]; if (R.season === 3 && !fog) s = winterOf(s); }
   else s = (fog ? set.fog : t.sick ? set.sick : set.trees)[t.sp][st][t.sp === 'ancient' ? 0 : t.v];
   let x = sx;
   if (t.shake > 0) x += Math.sin(time * 60) > 0 ? 1 : -1;
@@ -271,6 +274,11 @@ function drawTree(ctx, t, sx, sy, fog, time) {
   if (fog) return;
   if (t.mark) { // red ribbon on the trunk
     ctx.fillStyle = '#e04a3a'; ctx.fillRect(x - 2, sy - 6, 4, 2); ctx.fillStyle = '#ff9a80'; ctx.fillRect(x - 2, sy - 6, 1, 1);
+  }
+  if (t.fire > 0) { // flames climbing the canopy
+    drawFlame(ctx, x - 3, sy - 6, time + t.x, 0.9);
+    drawFlame(ctx, x + 3, sy - 14, time * 1.3 + t.y, 1.1);
+    drawFlame(ctx, x, sy - 22, time * 0.9 + t.x * 2, 0.8);
   }
   if (t.sick && !t.dead) { ctx.fillStyle = '#c9a23a'; ctx.fillRect(x + 3, sy - 4, 1, 1); ctx.fillRect(x - 4, sy - 9, 1, 1); }
   if (UI.sel && UI.sel.kind === 'tree' && UI.sel.ref === t) ctx.drawImage(R.hl.sel, sx - 16, sy - HTH);
@@ -287,6 +295,8 @@ function drawBuilding(ctx, b, sx, sy, time) {
   }
   if (R.season === 3) s = winterOf(s);
   if (UI.sel && UI.sel.kind === 'building' && UI.sel.ref === b) for (let j = 0; j < b.h; j++) for (let i = 0; i < b.w; i++) { const [hx, hy] = tileTop(b.x + i, b.y + j); ctx.drawImage(R.hl.sel, hx - 16, hy); }
+  const wheelBack = b.type === 'wheel' && wheelSide(b) >= 2; // a wheel on the far side goes behind the house
+  if (wheelBack) drawWaterWheel(ctx, b, b.gen > 0 ? time * 1.4 : 0);
   spr(ctx, s, sx, sy);
   // animated bits
   if (b.type === 'campfire') drawFlame(ctx, ...tileTop(b.x + 0.5, b.y + 0.5), time, 1);
@@ -298,6 +308,20 @@ function drawBuilding(ctx, b, sx, sy, time) {
   }
   if (b.type === 'workshop' && b.active && Math.random() < 0.05) fxPuff(isoX(b.x + 0.6, b.y + 0.6), isoY(b.x + 0.6, b.y + 0.6) - 34, 'rgba(200,200,200,', 1, 1);
   if (b.type === 'steam' && b.gen > 0) drawFlame(ctx, ...tileTop(b.x + 0.95, b.y + 2), time, 0.5, -2);
+  if (b.type === 'beamsaw') { // the big blade spins while it cuts
+    const [cx, cy] = tileTop(b.x + 1.0, b.y + 0.62); const a = b.active ? time * 12 : 0.3;
+    for (let i = 0; i < 4; i++) { const an = a + i * Math.PI / 2; ctx.fillStyle = '#e5e9ec'; ctx.fillRect(Math.round(cx + Math.cos(an) * 4), Math.round(cy - 10 + Math.sin(an) * 4), 1, 1); }
+    if (b.active && Math.random() < 0.3) G.fx.push({ k: 'chip', x: cx - R.ox + rf(-3, 3), y: cy - R.oy - 8, vx: rf(-12, 12), vy: rf(-14, -4), life: 0.5, col: '#e5c08f' });
+  }
+  if (b.type === 'wheel' && !wheelBack) drawWaterWheel(ctx, b, b.gen > 0 ? time * 1.4 : 0);
+  if ((b.type === 'kiln' || b.type === 'joinery') && b.active && Math.random() < 0.06) { const [x, y] = b.type === 'kiln' ? [b.x + 1.35, b.y + 0.55] : [b.x + 0.7, b.y + 0.5]; fxPuff(isoX(x, y), isoY(x, y) - (b.type === 'kiln' ? 38 : 34), 'rgba(200,200,200,', 1, 1); }
+  if (b.type === 'cookhouse' && hourOf() > 6 && hourOf() < 20 && Math.random() < 0.04) fxPuff(isoX(b.x + 0.5, b.y + 0.6), isoY(b.x + 0.5, b.y + 0.6) - 30, 'rgba(210,210,210,', 1, 1);
+  if (b.type === 'press' && b.active) { const [px, py] = tileTop(b.x + 0.5, b.y + 0.85); ctx.fillStyle = '#b2b7bb'; ctx.fillRect(Math.round(px) - 1, Math.round(py - 15 - Math.abs(Math.sin(time * 6)) * 3), 2, 3); }
+  if (b.type === 'sorter') drawSorter(ctx, b, b.dir, b.filter);
+  if ((b.lvl || 1) > 1) { // gold pips for each tuning level
+    const [px, py] = tileTop(b.x + b.w, b.y + b.h);
+    for (let i = 0; i < b.lvl - 1; i++) { ctx.fillStyle = '#5a3a10'; ctx.fillRect(Math.round(px - 5 + i * 5), Math.round(py - 5), 4, 4); ctx.fillStyle = '#f3c11b'; ctx.fillRect(Math.round(px - 4 + i * 5), Math.round(py - 4), 2, 2); }
+  }
   // status badge
   let badge = null;
   if (b.broken) badge = 'broken';
@@ -307,6 +331,48 @@ function drawBuilding(ctx, b, sx, sy, time) {
     const [cx, cy] = tileTop(b.x + b.w / 2, b.y + b.h / 2);
     ctx.drawImage(R.status[badge], Math.round(cx - 5), Math.round(cy - 46));
   }
+}
+// which side of a water wheel meets the water: 0 +x, 1 +y, 2 -x, 3 -y (the same as DX/DY)
+function wheelSide(b) {
+  if (b._side === undefined) {
+    b._side = 0;
+    const wet = (x, y) => inMap(x, y) && !G.tiles[idx(x, y)];
+    for (const d of [0, 1, 2, 3]) {
+      const edge = d === 0 ? [[2, 0], [2, 1]] : d === 1 ? [[0, 2], [1, 2]] : d === 2 ? [[-1, 0], [-1, 1]] : [[0, -1], [1, -1]];
+      if (edge.some(([i, j]) => wet(b.x + i, b.y + j))) { b._side = d; break; }
+    }
+  }
+  return b._side;
+}
+// the wheel stands just outside the house on the water side and turns in the plane of that wall
+function drawWaterWheel(ctx, b, a) {
+  const d = wheelSide(b), along = d === 0 || d === 2; // wall at constant x, or at constant y
+  const fixed = d === 0 ? b.x + 2.05 : d === 2 ? b.x - 0.05 : d === 1 ? b.y + 2.05 : b.y - 0.05;
+  const ry = 0.62, rz = 11, z0 = 10;
+  const at = (ang, k = 1) => {
+    const o = 1 + Math.cos(ang) * ry * k;
+    const [sx, sy] = along ? tileTop(fixed, b.y + o) : tileTop(b.x + o, fixed);
+    return [Math.round(sx), Math.round(sy - z0 - Math.sin(ang) * rz * k)];
+  };
+  for (let i = 0; i < 48; i++) { const t = i / 48 * Math.PI * 2; const [px, py] = at(t); ctx.fillStyle = '#43291a'; ctx.fillRect(px, py, 2, 2); const [qx, qy] = at(t, 0.8); ctx.fillStyle = '#7b5435'; ctx.fillRect(qx, qy, 1, 1); }
+  for (let i = 0; i < 8; i++) {
+    const ang = a + i * Math.PI / 4;
+    ctx.fillStyle = '#94673f';
+    for (let k = 0.1; k <= 0.95; k += 0.08) { const [px, py] = at(ang, k); ctx.fillRect(px, py, 2, 1); }
+    const [px, py] = at(ang, 1.08); ctx.fillStyle = '#43291a'; ctx.fillRect(px - 2, py - 2, 5, 5); ctx.fillStyle = '#b98d55'; ctx.fillRect(px - 1, py - 1, 3, 3);
+  }
+  const [hx, hy] = at(0, 0); ctx.fillStyle = '#666c73'; ctx.fillRect(hx - 2, hy - 2, 4, 4);
+  if (a) { ctx.fillStyle = 'rgba(230,245,255,0.8)'; for (let i = 0; i < 4; i++) { const [px, py] = at(Math.PI * 0.5 + rf(-0.7, 0.7), 1.1); ctx.fillRect(px, py + 2, 2, 1); } } // foam where the paddles dip
+  if (a && Math.random() < 0.15) { const [px, py] = at(Math.PI * 0.5 + rf(-0.6, 0.6)); G.fx.push({ k: 'water', x: px - R.ox, y: py - R.oy + 10, vx: rf(-6, 6), vy: rf(-10, -4), life: 0.4 }); }
+}
+// an arrow showing which way the chosen item leaves, with that item floating above
+function drawSorter(ctx, b, dir, filter) {
+  const [cx, cy] = tileTop(b.x + 0.5, b.y + 0.5);
+  const vx = (DX[dir] - DY[dir]) * HTW * 0.32, vy = (DX[dir] + DY[dir]) * HTH * 0.32;
+  ctx.fillStyle = '#ffe28a';
+  for (let k = -1; k <= 1; k += 0.25) ctx.fillRect(Math.round(cx + vx * k), Math.round(cy - 6 + vy * k), 1, 1);
+  for (const s of [-1, 1]) for (let k = 0; k < 3; k++) ctx.fillRect(Math.round(cx + vx - vx * k * 0.2 + s * vy * k * 0.4), Math.round(cy - 6 + vy - vy * k * 0.2 - s * vx * k * 0.25), 1, 1);
+  if (filter && ART.items[filter]) spr(ctx, ART.items[filter], cx, cy - 12);
 }
 function drawFlame(ctx, x, y, time, scale = 1, dy = 0) {
   x = Math.round(x); y = Math.round(y - 2 + dy);
@@ -353,6 +419,7 @@ function drawWires(ctx) {
 function wireAnchor(b) {
   const [x, y] = tileTop(b.x + b.w / 2, b.y + b.h / 2);
   if (b.type === 'pole') return [x, y - 25];
+  if (b.type === 'pylon') return [x, y - 38];
   if (b.type === 'steam') return [x, y - 22];
   return [x, y - (b.type === 'solar' ? 10 : 18)];
 }
@@ -368,12 +435,15 @@ function drawToolPreview(ctx, time) {
     const d = BDEF[tool];
     const bx = h.x - Math.floor((d.w - 1) / 2), by = h.y - Math.floor((d.h - 1) / 2);
     const ok = !canPlace(tool, bx, by);
-    if (tool === 'pole' || BDEF[tool].power || tool === 'steam' || tool === 'solar') {
-      const cx = bx + d.w / 2, cy = by + d.h / 2, r = tool === 'pole' ? 6.5 : 3.2;
+    const toolPole = tool === 'pole' || tool === 'pylon';
+    if (toolPole || BDEF[tool].power || isSource({ type: tool })) {
+      const cx = bx + d.w / 2, cy = by + d.h / 2, r = toolPole ? 6.5 : 3.2;
       for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) if (inMap(x, y) && dist(x + 0.5, y + 0.5, cx, cy) <= r) { const [sx, sy] = tileTop(x, y); ctx.drawImage(R.hl.range, sx - 16, sy); }
-      for (const n of G.buildings) if (n.type === 'pole' || n.type === 'steam' || n.type === 'solar') {
-        const nc = bCenter(n), nr = n.type === 'pole' ? 6.5 : 3.2;
-        if (tool !== 'pole' && dist(nc.x, nc.y, cx, cy) <= nr + 1) { const [sx, sy] = tileTop(n.x + n.w / 2, n.y + n.h / 2); ctx.fillStyle = '#ffd65a'; ctx.fillRect(sx - 1, sy - 30, 3, 3); }
+      for (const n of G.buildings) if (isPole(n) || isSource(n)) {
+        const nc = bCenter(n), nr = isPole(n) ? 6.5 : 3.2, nd = dist(nc.x, nc.y, cx, cy);
+        // a machine shows what would power it; a pole shows what it would wire up to
+        const reach = toolPole ? (isPole(n) || isSource(n)) && nd <= (tool === 'pylon' && n.type === 'pylon' ? BDEF.pylon.link : BDEF.pole.link) : nd <= nr + 1;
+        if (reach) { const [sx, sy] = tileTop(n.x + n.w / 2, n.y + n.h / 2); ctx.fillStyle = '#ffd65a'; ctx.fillRect(sx - 1, sy - 30, 3, 3); }
       }
     }
     for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) { const [sx, sy] = tileTop(bx + i, by + j); ctx.drawImage(ok ? R.hl.ok : R.hl.bad, sx - 16, sy); }
@@ -382,6 +452,7 @@ function drawToolPreview(ctx, time) {
     const [sx, sy] = tileTop(bx, by);
     spr(ctx, s, sx, sy);
     ctx.globalAlpha = 1;
+    if (d.dir) drawSorter(ctx, { x: bx, y: by }, UI.beltDir, null);
     return;
   }
   const tiles = UI.dragTiles();
@@ -416,7 +487,13 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
     if (b.type === 'campfire') { const [x, y] = tileTop(b.x + 0.5, b.y + 0.5); glow(x, y - 4, 46 + Math.sin(time * 9) * 2, '255,140,50', dark * 0.75); }
     if (b.type === 'hq') { const [x, y] = tileTop(b.x + 1.5, b.y + 2.6); glow(x, y - 10, 34, '255,200,110', dark * 0.5); }
     if (b.type === 'steam' && b.gen > 0) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 4, 22, '255,120,40', dark * 0.6); }
-    if ((b.type === 'sawmill' || b.type === 'workshop') && b.active) { const [x, y] = tileTop(b.x + 1, b.y + 2); glow(x, y - 8, 20, '255,210,140', dark * 0.4); }
+    if (BDEF[b.type].recipes && b.active) { const [x, y] = tileTop(b.x + b.w / 2, b.y + b.h); glow(x, y - 8, 20, '255,210,140', dark * 0.4); }
+    if (b.type === 'kiln' && b.active) { const [x, y] = tileTop(b.x + 1, b.y + 1.8); glow(x, y - 3, 16, '255,120,40', dark * 0.6); }
+    if (b.type === 'cookhouse' || b.type === 'bunkhouse' || b.type === 'lookout') { const [x, y] = tileTop(b.x + b.w / 2, b.y + b.h); glow(x, y - (b.type === 'lookout' ? 44 : 8), 18, '255,200,110', dark * 0.35); }
+  }
+  for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+    const t = G.tree[idx(x, y)];
+    if (t && t.fire > 0) { const [gx, gy] = tileTop(x + 0.5, y + 0.5); glow(gx, gy - 14, 40, '255,110,40', Math.max(0.25, dark) * 0.8); }
   }
   // fireflies drifting through the trees (none in winter)
   if (R.season === 3) R.fireflies.length = 0;
@@ -431,6 +508,85 @@ function drawNight(ctx, time, tx0, tx1, ty0, ty1) {
   }
   if (Math.random() < 0.02) R.fireflies.shift();
   ctx.globalCompositeOperation = 'source-over';
+}
+
+// ---------- tutorial markers on the map ----------
+function tutArrow(ctx, x, y, time) { // a bouncing gold arrow whose tip sits at (x, y)
+  const b = Math.round(Math.abs(Math.sin(time * 4)) * 4);
+  x = Math.round(x); y = Math.round(y) - b;
+  ctx.fillStyle = '#2a1a19';
+  ctx.fillRect(x - 3, y - 14, 7, 7); ctx.fillRect(x - 6, y - 8, 13, 2);
+  for (let i = 0; i < 6; i++) ctx.fillRect(x - 6 + i, y - 7 + i, 13 - i * 2, 1);
+  ctx.fillStyle = '#f5c518';
+  ctx.fillRect(x - 2, y - 13, 5, 6);
+  for (let i = 0; i < 5; i++) ctx.fillRect(x - 5 + i, y - 7 + i, 11 - i * 2, 1);
+}
+function tutRingTrees() { // a tight cluster of grown trees by camp, so one drag can mark them all
+  const c = bCenter(G.hq), y = G.tutor.yard;
+  const inYard = (t) => y && t.x >= y.x - 1 && t.x <= y.x + 9 && t.y >= y.y - 2 && t.y <= y.y + 3;
+  const ok = (t) => !t.dead && t.sp !== 'ancient' && !inYard(t) && G.reveal[idx(t.x, t.y)] && (treeStage(t) === 'mature' || treeStage(t) === 'old');
+  const live = () => (R.ring || []).map(([x, y]) => G.tree[idx(x, y)]).filter(t => t && ok(t) && !t.mark);
+  if (live().length < Math.min(5, 5 - (G.tutor.marked || 0) + 1)) {
+    const grown = G.trees.filter(ok);
+    let best = null, bs = 1e9; // the anchor with the most grown trees within 2 tiles, close to camp
+    for (const t of grown) {
+      const near = grown.filter(o => Math.abs(o.x - t.x) <= 2 && Math.abs(o.y - t.y) <= 2).length;
+      const sc = dist(t.x, t.y, c.x, c.y) - near * 2.5;
+      if (sc < bs) { bs = sc; best = t; }
+    }
+    R.ring = best ? grown.filter(o => Math.abs(o.x - best.x) <= 2 && Math.abs(o.y - best.y) <= 2).slice(0, 8).map(t => [t.x, t.y]) : [];
+  }
+  return live();
+}
+function drawTutorial(ctx, time) {
+  const step = playing ? currentStep() : null;
+  if (!step || !step.marker) return;
+  const pulse = 0.55 + 0.45 * Math.sin(time * 5);
+  const yd = G.tutor.yard;
+  const ghost = (type, dx, dy) => { // translucent building where we suggest putting it
+    const d = BDEF[type], x = yd.x + dx, y = yd.y + dy;
+    ctx.globalAlpha = 0.35 + pulse * 0.3;
+    for (let j = 0; j < d.h; j++) for (let i = 0; i < d.w; i++) { const [sx, sy] = tileTop(x + i, y + j); ctx.drawImage(R.hl.ok, sx - 16, sy); }
+    ctx.globalAlpha = 0.45;
+    const [sx, sy] = tileTop(x, y);
+    spr(ctx, type === 'intake' ? ART.b.intake[0] : ART.b[type], sx, sy);
+    ctx.globalAlpha = 1;
+    const [ax, ay] = tileTop(x + d.w / 2, y + d.h / 2);
+    tutArrow(ctx, ax, ay - (type === 'intake' ? 14 : 36), time);
+  };
+  const ghostBelts = (tiles) => {
+    let first = null;
+    for (const [dx, dy] of tiles) {
+      const x = yd.x + dx, y = yd.y + dy;
+      if (G.belt[idx(x, y)]) continue;
+      const [sx, sy] = tileTop(x, y);
+      ctx.globalAlpha = 0.35 + pulse * 0.35; spr(ctx, ART.belt[0][Math.floor(time * 6) % 4], sx, sy); ctx.globalAlpha = 1;
+      if (!first) first = [x, y];
+    }
+    if (first) { const [ax, ay] = tileTop(first[0] + 0.5, first[1] + 0.5); tutArrow(ctx, ax, ay - 4, time); }
+    return !!first;
+  };
+  const m = step.marker;
+  if (m === 'worker') {
+    for (const w of G.workers) if (!w.hidden) { const [sx, sy] = tileTop(w.x, w.y); tutArrow(ctx, sx, sy - 20, time); }
+  } else if (m === 'trees') {
+    if (UI.tool === 'chop' || (G.tutor.marked || 0) > 0) {
+      const trees = tutRingTrees();
+      ctx.globalAlpha = pulse;
+      for (const t of trees) { const [sx, sy] = tileTop(t.x, t.y); ctx.drawImage(R.hl.hover, sx - 16, sy); ctx.drawImage(R.hl.hover, sx - 16, sy); }
+      ctx.globalAlpha = 1;
+      if (trees[0]) { const [sx, sy] = tileTop(trees[0].x + 0.5, trees[0].y + 0.5); tutArrow(ctx, sx, sy - 34, time); }
+    }
+  } else if (yd && m === 'yard') {
+    ctx.globalAlpha = 0.5 + pulse * 0.4;
+    for (let y = yd.y - 1; y <= yd.y + 2; y++) for (let x = yd.x; x <= yd.x + 8; x++) { const [sx, sy] = tileTop(x, y); ctx.drawImage(R.hl.range, sx - 16, sy); ctx.drawImage(R.hl.range, sx - 16, sy); }
+    ctx.globalAlpha = 1;
+    const [ax, ay] = tileTop(yd.x + 4.5, yd.y + 0.5); tutArrow(ctx, ax, ay - 6, time);
+  } else if (yd && BDEF[m]) {
+    const built = G.buildings.some(b => b.type === m);
+    if (!built) ghost(m, ...YARD[m]);
+    else if (m === 'depot') ghostBelts(YARD.belt2);
+  } else if (yd && m === 'belt1') ghostBelts(YARD.belt1);
 }
 
 // falling petals in spring, leaves in autumn, snow in winter; drawn in screen space
