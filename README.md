@@ -93,7 +93,7 @@ Saving to a file also refreshes the autosave, and loading a file makes it the ne
 
 ## Release trailer
 
-`trailer/heartwood-mill-trailer.mp4` is a 55-second, 1080p trailer. It is made by the game itself: `trailer/index.html` loads the game's scripts, builds a mill, and runs a scripted sequence of shots (dawn over the forest, felling, the factory line, the four seasons, a night by the campfire, replanting). Each frame is rendered by the game's own renderer, and the titles are drawn in its panel style. The soundtrack uses the game's synthesised effects and a short tune made with the same Web Audio helpers.
+`trailer/heartwood-mill-trailer.mp4` is a 65-second, 1080p release trailer that follows one mill from a Woodlot to the Heartwood Company. The game makes it itself: `trailer/index.html` loads the game's scripts and builds a mill on one island, adding to it rank by rank between shots. The shots are: Edda Rowan's last journal page at dawn, felling by hand, the starter sawmill in the first winter, the kiln line, a forest fire, beam saws and the water wheel, the burnt slope replanted, and cabin kits shipped from the harbour dock. Each frame is rendered by the game's own renderer, and the titles (the rank ladder, rank-up banners, contracts and toasts) are drawn in its panel style. The soundtrack uses the game's synthesised effects and a short tune made with the same Web Audio helpers. `heartwood-mill-trailer-v1.mp4` is the first, shorter trailer, made before mill ranks and the story were added.
 
 To render it again, run `node trailer/make-video.js`. This needs Node, Playwright with Chromium, and ffmpeg with libx264. Add `--from=12 --to=20` to render only part of it.
 
